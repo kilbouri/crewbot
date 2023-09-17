@@ -1,0 +1,37 @@
+{
+    "name": "map-vote-bot",
+    "version": "1.0.0",
+    "main": "index.ts",
+    "author": "Isaac Kilbourne",
+    "license": "MIT",
+    "private": true,
+    "scripts": {
+        "dev": "ts-node ./src/index.ts",
+        "dev-pretty": "ts-node ./src/index.ts | pino-pretty",
+        "build": "tsc -outdir ./build",
+        "host": "node ./build/index.js"
+    },
+    "devDependencies": {
+        "@types/node": "^20.1.0",
+        "@tsconfig/node16": "^1.0.3",
+        "discord.js": "^14.10.2",
+        "json5": "^2.2.3",
+        "pino": "^8.12.1",
+        "shutdown-handler": "^1.0.1",
+        "pino-pretty": "^10.0.0",
+        "ts-node": "^10.9.1",
+        "typescript": "^5.0.4"
+    },
+    "prettier": {
+        "tabWidth": 4,
+        "useTabs": false,
+        "semi": true,
+        "singleQuote": false,
+        "quoteProps": "as-needed",
+        "trailingComma": "es5",
+        "bracketSpacing": false,
+        "arrowParens": "always",
+        "endOfLine": "lf",
+        "printWidth": 90
+    }
+}

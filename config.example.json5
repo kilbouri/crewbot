@@ -1,0 +1,19 @@
+{
+    // production client information
+    production: {
+        appId: "",
+        apiToken: "",
+        botUid: 8,
+    },
+
+    // development client information
+    development: {
+        appId: "",
+        apiToken: "",
+        guild: "",
+        botUid: 8,
+    },
+
+    // should the bot be in development mode?
+    devMode: true,
+}
