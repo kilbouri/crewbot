@@ -8,7 +8,7 @@ const readyModule: EventType = {
     execute: async (client: Client<true>) => {
         client.user.setActivity({
             type: ActivityType.Watching,
-            name: "you edit this bot",
+            name: "your games",
         });
 
         logger.info("Bot is ready");

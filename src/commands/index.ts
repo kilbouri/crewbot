@@ -15,7 +15,6 @@ interface CommandType {
         | SlashCommandBuilder
         | SlashCommandSubcommandsOnlyBuilder
         | Omit<SlashCommandBuilder, "addSubcommandGroup" | "addSubcommand">;
-    deferMode: "NORMAL" | "EPHEMERAL" | "NO-DEFER";
     execute: (interaction: ChatInputCommandInteraction<CacheType>) => Promise<any>;
 }
 
