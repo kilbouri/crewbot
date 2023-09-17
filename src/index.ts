@@ -9,7 +9,7 @@ let client: Client | undefined;
 const start = async () => {
     const apiConfig = Config.devMode ? Config.development : Config.production;
 
-    client = new Client({intents: []});
+    client = new Client({intents: ["GuildVoiceStates"]});
 
     if (Config.devMode) {
         client.on("error", logger.error);
