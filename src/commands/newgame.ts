@@ -1,5 +1,6 @@
 import {ChannelType, EmbedBuilder, SlashCommandBuilder, SlashCommandChannelOption} from "discord.js";
 import {CommandType} from ".";
+import {Games} from "../database";
 
 const newgameModule: CommandType = {
     data: new SlashCommandBuilder()
@@ -15,18 +16,15 @@ const newgameModule: CommandType = {
         ),
     execute: async (intr) => {
         const options = intr.options;
-
         const channel = options.getChannel("channel", true, [ChannelType.GuildVoice]);
 
-        const voiceUserString = channel.members.map((m) => m.toString()).join(", ");
-        return await intr.reply(voiceUserString || "Nobody in " + channel.toString());
+        const existingGame = await Games.findOne({where: {channelId: channel.id}});
+        if (existingGame) {
+            return intr.reply("There's already a game in that channel");
+        }
 
-        const gameEmbed = new EmbedBuilder();
-
-        gameEmbed.setTitle(`Among Us in ${channel.toString()}`);
-        gameEmbed.setDescription("There is now a game running in " + channel.toString());
-
-        await intr.reply({embeds: [gameEmbed]});
+        const newGame = await Games.create({channelId: channel.id});
+        return intr.reply(`Created a game in ${channel.toString()}`);
     },
 };
 

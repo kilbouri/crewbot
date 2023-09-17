@@ -1,5 +1,6 @@
 import {LoadCommands} from "./commands";
 import {Config} from "./config";
+import {InitializeDatabase} from "./database";
 import {LoadEvents} from "./events";
 import {logger} from "./logger";
 import {Client} from "discord.js";
@@ -11,11 +12,10 @@ const start = async () => {
 
     client = new Client({intents: ["GuildVoiceStates", "GuildMembers"]});
 
-    if (Config.devMode) {
-        client.on("error", logger.error);
-        client.on("warn", logger.warn);
-    }
+    client.on("error", logger.error);
+    client.on("warn", logger.warn);
 
+    await InitializeDatabase();
     await LoadCommands(apiConfig);
     await LoadEvents(client);
 
