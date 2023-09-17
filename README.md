@@ -1,13 +1,6 @@
-# A Discord Bot
+# Crewbot
 
-This is a template!
-
-## Features
-
-- TypeScript
-- Minimal configuration setup
-- Slash command and event handlers
-- Dockerfile for deployment
+A Discord bot to enhance Among Us games in voice channels.
 
 ## Build & Run
 
