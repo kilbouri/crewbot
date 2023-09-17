@@ -10,10 +10,15 @@ const sequelize = new Sequelize("database", "user", "password", {
 
 interface Game {
     channelId: string;
+    state: "created" | "playing" | "meeting";
 }
 
 const Games = sequelize.define<Model<Game>>("games", {
-    channelId: DataTypes.STRING(32),
+    channelId: {
+        type: DataTypes.STRING(32),
+        primaryKey: true,
+    },
+    state: DataTypes.STRING(8),
 });
 
 /**

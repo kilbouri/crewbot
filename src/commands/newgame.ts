@@ -1,6 +1,17 @@
-import {ChannelType, EmbedBuilder, SlashCommandBuilder, SlashCommandChannelOption} from "discord.js";
+import {
+    ActionRowBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    ChannelType,
+    EmbedBuilder,
+    MessageActionRowComponentBuilder,
+    SlashCommandBuilder,
+    SlashCommandChannelOption,
+} from "discord.js";
 import {CommandType} from ".";
 import {Games} from "../database";
+import {CreateGame} from "../gameCoordinator";
+import {BuildButtonId} from "../buttons";
 
 const newgameModule: CommandType = {
     data: new SlashCommandBuilder()
@@ -23,8 +34,37 @@ const newgameModule: CommandType = {
             return intr.reply("There's already a game in that channel");
         }
 
-        const newGame = await Games.create({channelId: channel.id});
-        return intr.reply(`Created a game in ${channel.toString()}`);
+        const alivePlayers = channel.members.map((m) => m.displayName).join("\n");
+        const embed = new EmbedBuilder().setTitle(`Among Us in ${channel.toString()}`).addFields(
+            {
+                name: "Alive",
+                value: alivePlayers || "Nobody",
+                inline: true,
+            },
+            {
+                name: "Dead",
+                value: "Nobody",
+                inline: true,
+            }
+        );
+
+        const gameId = await CreateGame(channel.id);
+
+        const gameStartedButton = new ButtonBuilder() //
+            .setLabel("Game Started")
+            .setCustomId(BuildButtonId("gameStart", gameId))
+            .setStyle(ButtonStyle.Primary);
+
+        const meetingStartedButton = new ButtonBuilder() //
+            .setLabel("Meeting Started")
+            .setCustomId(BuildButtonId("meetingStart", gameId))
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(true);
+
+        const actionRow = new ActionRowBuilder<MessageActionRowComponentBuilder>() //
+            .addComponents(gameStartedButton, meetingStartedButton);
+
+        return intr.reply({embeds: [embed], components: [actionRow]});
     },
 };
 
