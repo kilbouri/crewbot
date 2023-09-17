@@ -1,9 +1,4 @@
-import {
-    ChannelType,
-    EmbedBuilder,
-    SlashCommandBuilder,
-    SlashCommandChannelOption,
-} from "discord.js";
+import {ChannelType, EmbedBuilder, SlashCommandBuilder, SlashCommandChannelOption} from "discord.js";
 import {CommandType} from ".";
 
 const newgameModule: CommandType = {

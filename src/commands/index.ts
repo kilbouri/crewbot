@@ -21,11 +21,7 @@ interface CommandType {
 const commandCache = new Map<string, CommandType>();
 let commandsLoaded = false;
 
-const LoadCommands = async (options: {
-    guild?: string;
-    apiToken: string;
-    appId: string;
-}) => {
+const LoadCommands = async (options: {guild?: string; apiToken: string; appId: string}) => {
     const {guild, apiToken, appId} = options;
 
     logger.info(`Loading commands from '${__dirname}'`);
@@ -37,17 +33,14 @@ const LoadCommands = async (options: {
         .map((name) => require(path.resolve(__dirname, name)) as {command: CommandType});
 
     const rest = new REST({version: "10"}).setToken(apiToken);
-    const route = guild
+    const route = guild //
         ? Routes.applicationGuildCommands(appId, guild)
         : Routes.applicationCommands(appId);
 
     const commandData = modules.map((module) => module.command.data.toJSON());
     await rest.put(route, {body: commandData});
 
-    modules.forEach((module) =>
-        commandCache.set(module.command.data.name, module.command)
-    );
-
+    modules.forEach((module) => commandCache.set(module.command.data.name, module.command));
     commandsLoaded = true;
 };
 

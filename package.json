@@ -32,6 +32,6 @@
         "bracketSpacing": false,
         "arrowParens": "always",
         "endOfLine": "lf",
-        "printWidth": 90
+        "printWidth": 120
     }
 }
