@@ -49,7 +49,7 @@ export class GameCoordinator {
      * "Playing" phase. This is the bot's version of pressing the Play button in game.
      */
     async startGame() {
-        this.game.update({state: "playing"});
+        await this.game.update({state: "playing"});
     }
 
     /**
