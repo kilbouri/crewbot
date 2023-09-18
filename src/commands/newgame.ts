@@ -34,6 +34,16 @@ const newgameModule: CommandType = {
             return intr.reply({content: "There's already a game in that channel", ephemeral: true});
         }
 
+        // intermediate response to determine reply message id
+        const gameCreatingEmbed = new EmbedBuilder()
+            .setTitle("Creating game...")
+            .setDescription(`A game in ${channel.toString()} is being created. Please wait :)`);
+
+        const replyMessage = await intr.reply({embeds: [gameCreatingEmbed]});
+
+        // We can now create the game and update the embed
+        const gameId = await CreateGame(channel.id, intr.channelId, replyMessage.id);
+
         const alivePlayers = channel.members.map((m) => m.displayName).join("\n");
         const embed = new EmbedBuilder().setTitle(`Among Us in ${channel.toString()}`).addFields(
             {
@@ -48,17 +58,20 @@ const newgameModule: CommandType = {
             }
         );
 
-        const gameId = await CreateGame(channel.id);
-
         const gameStartedButton = new ButtonBuilder() //
             .setLabel("Game Started")
             .setCustomId(BuildButtonId("gameStart", gameId))
             .setStyle(ButtonStyle.Primary);
 
-        const actionRow = new ActionRowBuilder<MessageActionRowComponentBuilder>() //
-            .addComponents(gameStartedButton);
+        const gameEndedButton = new ButtonBuilder()
+            .setLabel("Game Ended")
+            .setStyle(ButtonStyle.Danger)
+            .setCustomId(BuildButtonId("gameEnd", gameId));
 
-        return intr.reply({embeds: [embed], components: [actionRow]});
+        const actionRow = new ActionRowBuilder<MessageActionRowComponentBuilder>() //
+            .addComponents(gameStartedButton, gameEndedButton);
+
+        await intr.editReply({embeds: [embed], components: [actionRow]});
     },
 };
 

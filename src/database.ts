@@ -10,6 +10,8 @@ const sequelize = new Sequelize("database", "user", "password", {
 
 interface Game {
     channelId: string;
+    gameStateMessageId: string;
+    gameStateChannelId: string;
     state: "created" | "playing" | "meeting";
 }
 
@@ -18,6 +20,8 @@ const Games = sequelize.define<Model<Game>>("games", {
         type: DataTypes.STRING(32),
         primaryKey: true,
     },
+    gameStateMessageId: DataTypes.STRING(32),
+    gameStateChannelId: DataTypes.STRING(32),
     state: DataTypes.STRING(8),
 });
 
