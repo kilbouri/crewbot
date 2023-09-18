@@ -1,71 +1,80 @@
-import {Games} from "./database";
-
-// todo: making this an actual class would be beneficial for semantics and DB performance
-
-/**
- * @param voiceChannelId The id of the voice channel in which the game is taking place
- * @param controlPanelChannelId The id of the channel in which the game's control panel message is located
- * @param controlPanelMessageId The id of the message which represents the game's control panel
- * @returns An identifier for the game
- */
-export const CreateGame = async (
-    voiceChannelId: string,
-    controlPanelChannelId: string,
-    controlPanelMessageId: string
-) => {
-    const createdValue = await Games.create({
-        channelId: voiceChannelId,
-        controlPanelChannelId: controlPanelChannelId,
-        controlPanelMessageId: controlPanelMessageId,
-        state: "created",
-    });
-
-    return createdValue.dataValues.channelId;
-};
+import {Model} from "sequelize";
+import {Game, Games} from "./database";
 
 /**
- * Starts a game. Staring is defined as moving from the "Created" phase to the
- * "Playing" phase. This is the bot's version of pressing the Play button in game.
- * @param gameId the id (provided by `CreateGame`) of the game to start
+ * Provides logic related to the lifecycle of an Among Us game.
  */
-export const StartGame = async (gameId: string) => {
-    await Games.update({state: "playing"}, {where: {channelId: gameId}});
-};
+export class GameCoordinator {
+    private constructor(private game: Model<Game, Game>) {}
 
-/**
- * Starts a meeting. As the name implies, the corresponding action in-game is
- * an emergency meeting being called, or a body being reported.
- * @param gameId the id (provided by `CreateGame`) of the game to start
- */
-export const StartMeeting = async (gameId: string) => {
-    await Games.update({state: "meeting"}, {where: {channelId: gameId}});
-};
+    /**
+     * Creates a GameCoordinator for an *existing* Game in the specified channel.
+     *
+     * @param voiceChannelId the id of the voice channel in which the game is occuring
+     * @returns A GameCoordinator the the game in the specified
+     *          voice channel, or undefined if no game is taking place
+     */
+    static async forChannel(voiceChannelId: string) {
+        const dbEntry = await Games.findOne({where: {channelId: voiceChannelId}});
 
-/**
- * Ends a meeting. As the name implies, the corresponding action in-game is
- * a meeting ending after the crew has voted.
- * @param gameId the id (provided by `CreateGame`) of the game to start
- */
-export const EndMeeting = async (gameId: string) => {
-    await Games.update({state: "playing"}, {where: {channelId: gameId}});
-};
-/**
- * Ends a game. The corresponding actions in-game include:
- * - the impostor(s) being voted out
- * - the impostor(s) killing enough crew
- * - the impostor(s) winning by sabotage
- * @param gameId the id (provided by `CreateGame`) of the game to start
- */
-export const EndGame = async (gameId: string) => {
-    await Games.destroy({where: {channelId: gameId}});
-};
+        if (!dbEntry) {
+            // we can't construct a coordinator for a
+            // channel that does not have a game in it
+            return undefined;
+        }
 
-/**
- * Obtains the game, if it exists, that is ocurring within the provided channel.
- * @param channelId the id of the voice channel that the game is occuring in.
- * @returns A `Game` object, or `undefined` if one does not exist.
- */
-export const GetGameInChannel = async (channelId: string) => {
-    const dbEntry = await Games.findOne({where: {channelId: channelId}});
-    return dbEntry?.dataValues;
-};
+        return new this(dbEntry);
+    }
+
+    /**
+     * Creates a Game in the specified channel with the specified control panel channel and message,
+     * and provides a GameCoordinator for that game.
+     * @param voiceChannelId the id of the voice channel in which the game will take place
+     * @param controlPanel the channel and message ids, needed to fetch the control panel in the future
+     * @returns a GameCoordinator for the newly created game.
+     */
+    static async createGame(voiceChannelId: string, controlPanel: {channelId: string; messageId: string}) {
+        const createdGame = await Games.create({
+            channelId: voiceChannelId,
+            controlPanelChannelId: controlPanel.channelId,
+            controlPanelMessageId: controlPanel.messageId,
+            state: "created",
+        });
+
+        return new this(createdGame);
+    }
+
+    /**
+     * Starts a game. Staring is defined as moving from the "Created" phase to the
+     * "Playing" phase. This is the bot's version of pressing the Play button in game.
+     */
+    async startGame() {
+        this.game.update({state: "playing"});
+    }
+
+    /**
+     * Starts a meeting. As the name implies, the corresponding action in-game is
+     * an emergency meeting being called, or a body being reported.
+     */
+    async startMeeting() {
+        await this.game.update({state: "meeting"});
+    }
+
+    /**
+     * Ends a meeting. As the name implies, the corresponding action in-game is
+     * a meeting ending after the crew has voted.
+     */
+    async endMeeting() {
+        await this.game.update({state: "playing"});
+    }
+
+    /**
+     * Ends a game. The corresponding actions in-game include:
+     * - the impostor(s) being voted out
+     * - the impostor(s) killing enough crew
+     * - the impostor(s) winning by sabotage
+     */
+    async endGame() {
+        await this.game.destroy();
+    }
+}

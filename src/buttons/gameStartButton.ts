@@ -1,23 +1,27 @@
 import {ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageActionRowComponentBuilder} from "discord.js";
 import {BuildButtonId, ButtonType} from ".";
-import {StartGame} from "../gameCoordinator";
+import {GameCoordinator} from "../gameCoordinator";
 
 const gameStartButton: ButtonType = {
     buttonId: "gameStart",
-    execute: async (intr, gameId: string) => {
-        // start the game
-        await StartGame(gameId);
+    execute: async (intr, channelId: string) => {
+        const coordinator = await GameCoordinator.forChannel(channelId);
+        if (!coordinator) {
+            return;
+        }
+
+        await coordinator.startGame();
 
         // create an updated action row
         const newActionRow = new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
             new ButtonBuilder()
                 .setLabel("Meeting Started")
                 .setStyle(ButtonStyle.Primary)
-                .setCustomId(BuildButtonId("meetingStart", gameId)),
+                .setCustomId(BuildButtonId("meetingStart", channelId)),
             new ButtonBuilder()
                 .setLabel("Game Ended")
                 .setStyle(ButtonStyle.Danger)
-                .setCustomId(BuildButtonId("gameEnd", gameId))
+                .setCustomId(BuildButtonId("gameEnd", channelId))
         );
 
         // edit the original message

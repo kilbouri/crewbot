@@ -10,8 +10,8 @@ import {
 } from "discord.js";
 import {CommandType} from ".";
 import {Games} from "../database";
-import {CreateGame} from "../gameCoordinator";
 import {BuildButtonId} from "../buttons";
+import {GameCoordinator} from "../gameCoordinator";
 
 const newgameModule: CommandType = {
     data: new SlashCommandBuilder()
@@ -42,7 +42,10 @@ const newgameModule: CommandType = {
         const replyMessage = await intr.reply({embeds: [gameCreatingEmbed]});
 
         // We can now create the game and update the embed
-        const gameId = await CreateGame(channel.id, intr.channelId, replyMessage.id);
+        await GameCoordinator.createGame(channel.id, {
+            channelId: intr.channelId,
+            messageId: replyMessage.id,
+        });
 
         const alivePlayers = channel.members.map((m) => m.displayName).join("\n");
         const embed = new EmbedBuilder().setTitle(`Among Us in ${channel.toString()}`).addFields(
@@ -60,13 +63,13 @@ const newgameModule: CommandType = {
 
         const gameStartedButton = new ButtonBuilder() //
             .setLabel("Game Started")
-            .setCustomId(BuildButtonId("gameStart", gameId))
+            .setCustomId(BuildButtonId("gameStart", channel.id))
             .setStyle(ButtonStyle.Primary);
 
         const gameEndedButton = new ButtonBuilder()
             .setLabel("Game Ended")
             .setStyle(ButtonStyle.Danger)
-            .setCustomId(BuildButtonId("gameEnd", gameId));
+            .setCustomId(BuildButtonId("gameEnd", channel.id));
 
         const actionRow = new ActionRowBuilder<MessageActionRowComponentBuilder>() //
             .addComponents(gameStartedButton, gameEndedButton);

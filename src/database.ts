@@ -34,4 +34,4 @@ const InitializeDatabase = async () => {
     await sequelize.sync({alter: Config.devMode});
 };
 
-export {Games, InitializeDatabase};
+export {Game, Games, InitializeDatabase};

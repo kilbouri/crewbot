@@ -5,15 +5,13 @@ import {
     ComponentType,
     EmbedBuilder,
     MessageActionRowComponentBuilder,
-    ModalActionRowComponentBuilder,
-    ModalBuilder,
 } from "discord.js";
 import {ButtonType} from ".";
-import {EndGame} from "../gameCoordinator";
+import {GameCoordinator} from "../gameCoordinator";
 
 const gameEndButton: ButtonType = {
     buttonId: "gameEnd",
-    execute: async (initialIntr, gameId: string) => {
+    execute: async (initialIntr, channelId: string) => {
         // Replace the embed with one indicating the game has ended
         const embed = new EmbedBuilder()
             .setTitle("Game Ended")
@@ -32,6 +30,11 @@ const gameEndButton: ButtonType = {
                 .setCustomId(cancelButtonId)
         );
 
+        const coordinator = await GameCoordinator.forChannel(channelId);
+        if (!coordinator) {
+            return;
+        }
+
         const confirmationMessage = await initialIntr.reply({
             content: "Are you sure you want to end this game?",
             components: [confirmActionRow],
@@ -46,7 +49,7 @@ const gameEndButton: ButtonType = {
             });
 
             if (buttonResponse.customId === confirmButtonId) {
-                await EndGame(gameId);
+                await coordinator.endGame();
 
                 // ensure the channel is in cache
                 await initialIntr.client.channels.fetch(initialIntr.message.channelId);
