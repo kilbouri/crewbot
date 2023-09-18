@@ -1,12 +1,11 @@
-import {ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageActionRowComponentBuilder} from "discord.js";
+import {ActionRowBuilder, MessageActionRowComponentBuilder, ButtonBuilder, ButtonStyle} from "discord.js";
 import {BuildButtonId, ButtonType} from ".";
-import {StartGame} from "../gameCoordinator";
+import {StartMeeting} from "../gameCoordinator";
 
-const gameStartButton: ButtonType = {
-    buttonId: "gameStart",
+const meetingEndButton: ButtonType = {
+    buttonId: "meetingEnd",
     execute: async (intr, gameId: string) => {
-        // start the game
-        await StartGame(gameId);
+        await StartMeeting(gameId);
 
         // create an updated action row
         const newActionRow = new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
@@ -25,4 +24,4 @@ const gameStartButton: ButtonType = {
     },
 };
 
-export {gameStartButton as button};
+export {meetingEndButton as button};

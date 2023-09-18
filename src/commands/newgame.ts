@@ -31,7 +31,7 @@ const newgameModule: CommandType = {
 
         const existingGame = await Games.findOne({where: {channelId: channel.id}});
         if (existingGame) {
-            return intr.reply("There's already a game in that channel");
+            return intr.reply({content: "There's already a game in that channel", ephemeral: true});
         }
 
         const alivePlayers = channel.members.map((m) => m.displayName).join("\n");
@@ -55,14 +55,8 @@ const newgameModule: CommandType = {
             .setCustomId(BuildButtonId("gameStart", gameId))
             .setStyle(ButtonStyle.Primary);
 
-        const meetingStartedButton = new ButtonBuilder() //
-            .setLabel("Meeting Started")
-            .setCustomId(BuildButtonId("meetingStart", gameId))
-            .setStyle(ButtonStyle.Secondary)
-            .setDisabled(true);
-
         const actionRow = new ActionRowBuilder<MessageActionRowComponentBuilder>() //
-            .addComponents(gameStartedButton, meetingStartedButton);
+            .addComponents(gameStartedButton);
 
         return intr.reply({embeds: [embed], components: [actionRow]});
     },

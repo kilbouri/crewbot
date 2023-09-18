@@ -40,7 +40,11 @@ const BuildButtonId = (buttonName: string, ...args: any[]) => {
 };
 
 const ParseButtonId = (buttonId: string) => {
-    return JSON.parse(buttonId) as {buttonName: string; args: any[]};
+    try {
+        return JSON.parse(buttonId) as {buttonName: string; args: any[]};
+    } catch {
+        return undefined;
+    }
 };
 
 export {GetButton, LoadButtons, ButtonType, BuildButtonId, ParseButtonId};

@@ -12,7 +12,16 @@ const interactionCreateModule: EventType = {
         }
 
         const customId = interaction.customId;
-        const {buttonName, args} = ParseButtonId(customId);
+
+        const parseResult = ParseButtonId(customId);
+        if (!parseResult) {
+            logger.warn(
+                `Received malformed button id: '${customId}'. This is not an issue as long as you are handling the button elsewhere.`
+            );
+            return;
+        }
+
+        const {buttonName, args} = parseResult;
         const buttonHandler = GetButton(buttonName);
 
         if (!buttonHandler) {
