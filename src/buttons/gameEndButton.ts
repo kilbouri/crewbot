@@ -51,9 +51,9 @@ const gameEndButton: ButtonType = {
                 // ensure the channel is in cache
                 await initialIntr.client.channels.fetch(initialIntr.message.channelId);
 
-                // fetch the game state message, and edit it
-                const gameStateMessage = await initialIntr.message.fetch();
-                await gameStateMessage.edit({embeds: [embed], components: []});
+                // fetch the game control panel, and edit it
+                const controlPanelMessage = await initialIntr.message.fetch();
+                await controlPanelMessage.edit({embeds: [embed], components: []});
             }
 
             await initialIntr.deleteReply();

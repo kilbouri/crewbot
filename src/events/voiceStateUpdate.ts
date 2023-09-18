@@ -3,7 +3,7 @@ import {EventType} from ".";
 import {logger} from "../logger";
 
 /**
- * Converts a voiceStateUpdate event into one of three:
+ * Converts a voiceStateUpdate event into a combination of the following:
  *
  * 1. userJoinedVoice - User joined a channel. Event handlers are
  *    provided the id of the channel joined, and the GuildMember who
@@ -12,9 +12,7 @@ import {logger} from "../logger";
  * 2. userLeftVoice - User left a channel. Event handlers are provided
  *    the id of the channel left, and the GuildMember who left it
  *
- * 3. userMovedVoice - User moved between two channels. Event handlers
- *    are provided the id of the channel left, the channel joined,
- *    and the GuildMember who moved
+ * A "move" from one channel to another is considered a combination of a leave and join.
  */
 const voiceStateUpdateModule: EventType = {
     eventName: "voiceStateUpdate",
@@ -29,28 +27,22 @@ const voiceStateUpdateModule: EventType = {
             return;
         }
 
-        let eventName: string;
-        let eventArgs: [string, GuildMember] | [string, string, GuildMember];
+        const eventsToDispatch: {name: string; args: [string, GuildMember]}[] = [];
 
-        if (!from && to) {
-            // joined
-            eventName = "userJoinedVoice";
-            eventArgs = [to, guildMember];
-        } else if (from && !to) {
-            // left
-            eventName = "userLeftVoice";
-            eventArgs = [from, guildMember];
-        } else if (from && to) {
-            // moved
-            eventName = "userMovedVoice";
-            eventArgs = [from, to, guildMember];
-        } else {
-            logger.warn("A voiceStateUpdate was received with neither a 'to' nor 'from' voice channel");
-            return;
+        if (from) {
+            // left a channel
+            eventsToDispatch.push({name: "userLeftVoice", args: [from, guildMember]});
         }
 
-        logger.debug(`Converted 'voiceStateUpdate' event to '${eventName}' with arguments [${eventArgs}]`);
-        client.emit(eventName, ...eventArgs);
+        if (to) {
+            // joined a channel
+            eventsToDispatch.push({name: "userJoinedVoice", args: [to, guildMember]});
+        }
+
+        for (const {name, args} of eventsToDispatch) {
+            logger.debug(`Converted 'voiceStateUpdate' event to '${name}' with arguments [${args}]`);
+            client.emit(name, ...args);
+        }
     },
 };
 
