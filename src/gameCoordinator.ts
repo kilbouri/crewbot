@@ -70,7 +70,8 @@ export class GameCoordinator {
 
     /**
      * Ends a game. The corresponding actions in-game include:
-     * - the impostor(s) being voted out
+     * - the crewmates voting out all impostors
+     * - the crewmates winning on tasks
      * - the impostor(s) killing enough crew
      * - the impostor(s) winning by sabotage
      */
