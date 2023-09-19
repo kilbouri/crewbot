@@ -8,13 +8,14 @@ const userJoinedVoice: EventType = {
     once: false,
     execute: async (client, channelId: string, guildMember: GuildMember) => {
         // check if there is a game in the joined channel
-        const coordinator = GameCoordinator.forChannel(channelId);
+        const coordinator = await GameCoordinator.forChannel(channelId);
         if (!coordinator) {
             return;
         }
 
         // there is a game running here.
         logger.info(`${guildMember.toString()} joined the game in ${channelMention(channelId)}`);
+        await coordinator.playerJoined(guildMember);
     },
 };
 

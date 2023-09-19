@@ -8,13 +8,14 @@ const userLeftVoice: EventType = {
     once: false,
     execute: async (client, channelId: string, guildMember: GuildMember) => {
         // check if there is a game in the left channel
-        const coordinator = GameCoordinator.forChannel(channelId);
+        const coordinator = await GameCoordinator.forChannel(channelId);
         if (!coordinator) {
             return;
         }
 
         // there is a game running here.
         logger.info(`${guildMember.toString()} left the game in ${channelMention(channelId)}`);
+        await coordinator.playerLeft(guildMember);
     },
 };
 

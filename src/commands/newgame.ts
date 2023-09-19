@@ -9,7 +9,7 @@ import {
     SlashCommandChannelOption,
 } from "discord.js";
 import {CommandType} from ".";
-import {Games} from "../database";
+import {Game} from "../database";
 import {BuildButtonId} from "../buttons";
 import {GameCoordinator} from "../gameCoordinator";
 
@@ -29,7 +29,7 @@ const newgameModule: CommandType = {
         const options = intr.options;
         const channel = options.getChannel("channel", true, [ChannelType.GuildVoice]);
 
-        const existingGame = await Games.findOne({where: {channelId: channel.id}});
+        const existingGame = await Game.findOne({where: {channelId: channel.id}});
         if (existingGame) {
             return intr.reply({content: "There's already a game in that channel", ephemeral: true});
         }

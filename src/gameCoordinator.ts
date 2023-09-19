@@ -1,11 +1,14 @@
-import {Model} from "sequelize";
-import {Game, Games} from "./database";
+import {Game} from "./database";
+import {Guild, GuildMember, TextBasedChannel} from "discord.js";
+import {DiscordClient} from "./discordClient";
+
+// TODO: cache instances so we don't have to work so hard to create em
 
 /**
  * Provides logic related to the lifecycle of an Among Us game.
  */
 export class GameCoordinator {
-    private constructor(private game: Model<Game, Game>) {}
+    private constructor(private game: Game) {}
 
     /**
      * Creates a GameCoordinator for an *existing* Game in the specified channel.
@@ -14,8 +17,8 @@ export class GameCoordinator {
      * @returns A GameCoordinator the the game in the specified
      *          voice channel, or undefined if no game is taking place
      */
-    static async forChannel(voiceChannelId: string) {
-        const dbEntry = await Games.findOne({where: {channelId: voiceChannelId}});
+    static async forChannel(voiceChannelId: string): Promise<GameCoordinator | undefined> {
+        const dbEntry = await Game.findOne({where: {channelId: voiceChannelId}});
 
         if (!dbEntry) {
             // we can't construct a coordinator for a
@@ -33,15 +36,43 @@ export class GameCoordinator {
      * @param controlPanel the channel and message ids, needed to fetch the control panel in the future
      * @returns a GameCoordinator for the newly created game.
      */
-    static async createGame(voiceChannelId: string, controlPanel: {channelId: string; messageId: string}) {
-        const createdGame = await Games.create({
+    static async createGame(
+        voiceChannelId: string,
+        controlPanel: {channelId: string; messageId: string}
+    ): Promise<GameCoordinator> {
+        const vc = await GameCoordinator.getChannel(voiceChannelId);
+        if (!vc || !vc.isVoiceBased()) {
+            throw "Invalid voice channel id";
+        }
+
+        const memberIds = vc.members.map((member) => member.id);
+
+        const createdGame = await Game.create({
             channelId: voiceChannelId,
             controlPanelChannelId: controlPanel.channelId,
             controlPanelMessageId: controlPanel.messageId,
+            currentPlayerIds: memberIds,
             state: "created",
         });
 
         return new this(createdGame);
+    }
+
+    // todo: relocate these helpers to somewhere else
+    private static async getChannel(channelId: string) {
+        return DiscordClient.channels.cache.get(channelId) ?? (await DiscordClient.channels.fetch(channelId));
+    }
+
+    private static async getMessage(messageId: string, channel: TextBasedChannel) {
+        return channel.messages.cache.get(messageId) ?? (await channel.messages.fetch(messageId));
+    }
+
+    private static async getGuild(guildId: string) {
+        return DiscordClient.guilds.cache.get(guildId) ?? (await DiscordClient.guilds.fetch(guildId));
+    }
+
+    private static async getRole(guild: Guild, roleId: string) {
+        return guild.roles.cache.get(roleId) ?? (await guild.roles.fetch(roleId));
     }
 
     /**
@@ -77,5 +108,33 @@ export class GameCoordinator {
      */
     async endGame() {
         await this.game.destroy();
+    }
+
+    /**
+     * Informs the coordinator that a player has joined the voice channel in which the game is taking place
+     * @param player the GuildMember which joined the voice channel the game is taking place in
+     */
+    async playerJoined(player: GuildMember) {
+        await this.game.reload();
+        if (this.game.dataValues.currentPlayerIds.includes(player.id)) {
+            return;
+        }
+
+        const newPlayerIds = [...this.game.dataValues.currentPlayerIds, player.id];
+        await this.game.update({currentPlayerIds: newPlayerIds});
+    }
+
+    /**
+     * Informs the coordinator that a player has left the voice channel in which the game is taking place
+     * @param player the GuildMember which left the voice channel the game is taking place in
+     */
+    async playerLeft(player: GuildMember) {
+        await this.game.reload();
+        if (!this.game.dataValues.currentPlayerIds.includes(player.id)) {
+            return;
+        }
+
+        const newPlayerIds = this.game.currentPlayerIds.filter((id) => id !== player.id);
+        await this.game.update({currentPlayerIds: newPlayerIds});
     }
 }
