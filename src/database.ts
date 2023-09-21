@@ -28,7 +28,7 @@ Game.init(
             type: DataTypes.TEXT(),
             get(this: Game) {
                 const dataVal = this.getDataValue("currentPlayerIds") as unknown as string;
-                return dataVal.split(";"); // this is a safe separator for user ids
+                return dataVal.split(";").filter((id) => id);
             },
             set(val: string[]) {
                 const dataVal = val.join(";") as unknown as string[];

@@ -1,5 +1,5 @@
 import {Game} from "./database";
-import {Guild, GuildMember, TextBasedChannel} from "discord.js";
+import {APIEmbed, EmbedBuilder, Guild, GuildMember, TextBasedChannel, channelMention, userMention} from "discord.js";
 import {DiscordClient} from "./discordClient";
 
 // TODO: cache instances so we don't have to work so hard to create em
@@ -75,6 +75,10 @@ export class GameCoordinator {
         return guild.roles.cache.get(roleId) ?? (await guild.roles.fetch(roleId));
     }
 
+    async setControlPanel(channelId: string, messageId: string) {
+        await this.game.update({controlPanelChannelId: channelId, controlPanelMessageId: messageId});
+    }
+
     /**
      * Starts a game. Staring is defined as moving from the "Created" phase to the
      * "Playing" phase. This is the bot's version of pressing the Play button in game.
@@ -116,12 +120,14 @@ export class GameCoordinator {
      */
     async playerJoined(player: GuildMember) {
         await this.game.reload();
-        if (this.game.dataValues.currentPlayerIds.includes(player.id)) {
+        if (this.game.currentPlayerIds.includes(player.id)) {
             return;
         }
 
-        const newPlayerIds = [...this.game.dataValues.currentPlayerIds, player.id];
+        const newPlayerIds = [...this.game.currentPlayerIds, player.id];
         await this.game.update({currentPlayerIds: newPlayerIds});
+
+        await this.updateAlivePlayers();
     }
 
     /**
@@ -130,11 +136,40 @@ export class GameCoordinator {
      */
     async playerLeft(player: GuildMember) {
         await this.game.reload();
-        if (!this.game.dataValues.currentPlayerIds.includes(player.id)) {
+        if (!this.game.currentPlayerIds.includes(player.id)) {
             return;
         }
 
         const newPlayerIds = this.game.currentPlayerIds.filter((id) => id !== player.id);
         await this.game.update({currentPlayerIds: newPlayerIds});
+
+        await this.updateAlivePlayers();
+    }
+
+    private async updateAlivePlayers() {
+        const channel = await GameCoordinator.getChannel(this.game.controlPanelChannelId);
+        if (!channel || !channel.isTextBased()) {
+            throw "Unable to fetch control panel channel";
+        }
+
+        const controlPanelMessage = await GameCoordinator.getMessage(this.game.controlPanelMessageId, channel);
+        if (!controlPanelMessage) {
+            throw "Unable to fetch control panel message";
+        }
+
+        await controlPanelMessage.edit({embeds: [this.getControlPanelEmbed()]});
+    }
+
+    private getControlPanelEmbed(): APIEmbed {
+        const toPlayerList = (ids: string[]) => ids.map(userMention).join("\n") || "Nobody";
+
+        return new EmbedBuilder()
+            .setTitle("Among Us in " + channelMention(this.game.channelId))
+            .setFields(
+                {name: "Alive", value: toPlayerList(this.game.currentPlayerIds), inline: true},
+                {name: "Dead", value: toPlayerList([]), inline: true},
+                {name: "Spectating", value: toPlayerList([]), inline: true}
+            )
+            .toJSON();
     }
 }

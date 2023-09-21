@@ -42,7 +42,7 @@ const newgameModule: CommandType = {
         const replyMessage = await intr.reply({embeds: [gameCreatingEmbed]});
 
         // We can now create the game and update the embed
-        await GameCoordinator.createGame(channel.id, {
+        const coordinator = await GameCoordinator.createGame(channel.id, {
             channelId: intr.channelId,
             messageId: replyMessage.id,
         });
@@ -74,7 +74,8 @@ const newgameModule: CommandType = {
         const actionRow = new ActionRowBuilder<MessageActionRowComponentBuilder>() //
             .addComponents(gameStartedButton, gameEndedButton);
 
-        await intr.editReply({embeds: [embed], components: [actionRow]});
+        const response = await intr.editReply({embeds: [embed], components: [actionRow]});
+        await coordinator.setControlPanel(response.channelId, response.id);
     },
 };
 
