@@ -40,7 +40,7 @@ export class GameCoordinator {
         voiceChannelId: string,
         controlPanel: {channelId: string; messageId: string}
     ): Promise<GameCoordinator> {
-        const vc = await GameCoordinator.getChannel(voiceChannelId);
+        const vc = await GameCoordinator.getChannel(voiceChannelId, true);
         if (!vc || !vc.isVoiceBased()) {
             throw "Invalid voice channel id";
         }
@@ -59,7 +59,11 @@ export class GameCoordinator {
     }
 
     // todo: relocate these helpers to somewhere else
-    private static async getChannel(channelId: string) {
+    private static async getChannel(channelId: string, forceFetch: boolean = false) {
+        if (forceFetch) {
+            return DiscordClient.channels.fetch(channelId, {force: forceFetch});
+        }
+
         return DiscordClient.channels.cache.get(channelId) ?? (await DiscordClient.channels.fetch(channelId));
     }
 
@@ -75,6 +79,14 @@ export class GameCoordinator {
         return guild.roles.cache.get(roleId) ?? (await guild.roles.fetch(roleId));
     }
 
+    /**
+     * Provides a mechanism to change the message that is being used as a control panel. The main use-case
+     * of this function is to update the message id when an edit changes the id, rather than to change it to
+     * a completely different message (though it is possible).
+     *
+     * @param channelId the new channel id of the control panel
+     * @param messageId the new message id of the control panel
+     */
     async setControlPanel(channelId: string, messageId: string) {
         await this.game.update({controlPanelChannelId: channelId, controlPanelMessageId: messageId});
     }
@@ -127,7 +139,7 @@ export class GameCoordinator {
         const newPlayerIds = [...this.game.currentPlayerIds, player.id];
         await this.game.update({currentPlayerIds: newPlayerIds});
 
-        await this.updateAlivePlayers();
+        await this.updateControlPanel();
     }
 
     /**
@@ -143,10 +155,29 @@ export class GameCoordinator {
         const newPlayerIds = this.game.currentPlayerIds.filter((id) => id !== player.id);
         await this.game.update({currentPlayerIds: newPlayerIds});
 
-        await this.updateAlivePlayers();
+        await this.updateControlPanel();
     }
 
-    private async updateAlivePlayers() {
+    /**
+     * Creates an embed which represents the current state of the game. Buttons and other components are *not* included.
+     * @returns an embed which can be used to render the control panel
+     */
+    getControlPanelEmbed(): APIEmbed {
+        // this is public because a few places require this embed, and since its a pure function it does not matter
+        // if it is called elsewhere.
+
+        const toPlayerList = (ids: string[]) => ids.map(userMention).join("\n") || "Nobody";
+        return new EmbedBuilder()
+            .setTitle("Among Us in " + channelMention(this.game.channelId))
+            .setFields(
+                {name: "Alive", value: toPlayerList(this.game.currentPlayerIds), inline: true},
+                {name: "Dead", value: toPlayerList([]), inline: true},
+                {name: "Spectating", value: toPlayerList([]), inline: true}
+            )
+            .toJSON();
+    }
+
+    private async updateControlPanel() {
         const channel = await GameCoordinator.getChannel(this.game.controlPanelChannelId);
         if (!channel || !channel.isTextBased()) {
             throw "Unable to fetch control panel channel";
@@ -158,18 +189,5 @@ export class GameCoordinator {
         }
 
         await controlPanelMessage.edit({embeds: [this.getControlPanelEmbed()]});
-    }
-
-    private getControlPanelEmbed(): APIEmbed {
-        const toPlayerList = (ids: string[]) => ids.map(userMention).join("\n") || "Nobody";
-
-        return new EmbedBuilder()
-            .setTitle("Among Us in " + channelMention(this.game.channelId))
-            .setFields(
-                {name: "Alive", value: toPlayerList(this.game.currentPlayerIds), inline: true},
-                {name: "Dead", value: toPlayerList([]), inline: true},
-                {name: "Spectating", value: toPlayerList([]), inline: true}
-            )
-            .toJSON();
     }
 }

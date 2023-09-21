@@ -47,19 +47,7 @@ const newgameModule: CommandType = {
             messageId: replyMessage.id,
         });
 
-        const alivePlayers = channel.members.map((m) => m.displayName).join("\n");
-        const embed = new EmbedBuilder().setTitle(`Among Us in ${channel.toString()}`).addFields(
-            {
-                name: "Alive",
-                value: alivePlayers || "Nobody",
-                inline: true,
-            },
-            {
-                name: "Dead",
-                value: "Nobody",
-                inline: true,
-            }
-        );
+        const embed = coordinator.getControlPanelEmbed();
 
         const gameStartedButton = new ButtonBuilder() //
             .setLabel("Game Started")
