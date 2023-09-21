@@ -128,15 +128,15 @@ export class GameCoordinator {
 
     /**
      * Informs the coordinator that a player has joined the voice channel in which the game is taking place
-     * @param player the GuildMember which joined the voice channel the game is taking place in
+     * @param playerId the GuildMember which joined the voice channel the game is taking place in
      */
-    async playerJoined(player: GuildMember) {
+    async playerJoined(playerId: string) {
         await this.game.reload();
-        if (this.game.currentPlayerIds.includes(player.id)) {
+        if (this.game.currentPlayerIds.includes(playerId)) {
             return;
         }
 
-        const newPlayerIds = [...this.game.currentPlayerIds, player.id];
+        const newPlayerIds = [...this.game.currentPlayerIds, playerId];
         await this.game.update({currentPlayerIds: newPlayerIds});
 
         await this.updateControlPanel();
@@ -144,15 +144,15 @@ export class GameCoordinator {
 
     /**
      * Informs the coordinator that a player has left the voice channel in which the game is taking place
-     * @param player the GuildMember which left the voice channel the game is taking place in
+     * @param playerId the GuildMember which left the voice channel the game is taking place in
      */
-    async playerLeft(player: GuildMember) {
+    async playerLeft(playerId: string) {
         await this.game.reload();
-        if (!this.game.currentPlayerIds.includes(player.id)) {
+        if (!this.game.currentPlayerIds.includes(playerId)) {
             return;
         }
 
-        const newPlayerIds = this.game.currentPlayerIds.filter((id) => id !== player.id);
+        const newPlayerIds = this.game.currentPlayerIds.filter((id) => id !== playerId);
         await this.game.update({currentPlayerIds: newPlayerIds});
 
         await this.updateControlPanel();

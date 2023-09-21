@@ -15,7 +15,7 @@ const userLeftVoice: EventType = {
 
         // there is a game running here.
         logger.info(`${guildMember.toString()} left the game in ${channelMention(channelId)}`);
-        await coordinator.playerLeft(guildMember);
+        await coordinator.playerLeft(guildMember.id);
     },
 };
 
