@@ -12,7 +12,9 @@ class Game extends Model<InferAttributes<Game>, InferCreationAttributes<Game>> {
     declare channelId: string;
     declare controlPanelMessageId: string;
     declare controlPanelChannelId: string;
-    declare currentPlayerIds: string[];
+    declare alivePlayerIds: Set<string>;
+    declare deadPlayerIds: Set<string>;
+    declare spectatingPlayerIds: Set<string>;
     declare state: "created" | "playing" | "meeting";
 }
 
@@ -24,15 +26,37 @@ Game.init(
         },
         controlPanelMessageId: DataTypes.STRING(32),
         controlPanelChannelId: DataTypes.STRING(32),
-        currentPlayerIds: {
+        alivePlayerIds: {
             type: DataTypes.TEXT(),
             get(this: Game) {
-                const dataVal = this.getDataValue("currentPlayerIds") as unknown as string;
-                return dataVal.split(";").filter((id) => id);
+                const dataVal = this.getDataValue("alivePlayerIds") as unknown as string;
+                return new Set<string>(dataVal.split(";").filter((id) => id));
             },
-            set(val: string[]) {
-                const dataVal = val.join(";") as unknown as string[];
-                this.setDataValue("currentPlayerIds", dataVal);
+            set(val: Set<string>) {
+                const dataVal = new Array(val.values()).join(";") as unknown as Set<string>;
+                this.setDataValue("alivePlayerIds", dataVal);
+            },
+        },
+        deadPlayerIds: {
+            type: DataTypes.TEXT(),
+            get(this: Game) {
+                const dataVal = this.getDataValue("deadPlayerIds") as unknown as string;
+                return new Set<string>(dataVal.split(";").filter((id) => id));
+            },
+            set(val: Set<string>) {
+                const dataVal = new Array(val.values()).join(";") as unknown as Set<string>;
+                this.setDataValue("deadPlayerIds", dataVal);
+            },
+        },
+        spectatingPlayerIds: {
+            type: DataTypes.TEXT(),
+            get(this: Game) {
+                const dataVal = this.getDataValue("spectatingPlayerIds") as unknown as string;
+                return new Set<string>(dataVal.split(";").filter((id) => id));
+            },
+            set(val: Set<string>) {
+                const dataVal = new Array(val.values()).join(";") as unknown as Set<string>;
+                this.setDataValue("spectatingPlayerIds", dataVal);
             },
         },
         state: DataTypes.STRING(8),

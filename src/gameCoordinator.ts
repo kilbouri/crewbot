@@ -47,36 +47,19 @@ export class GameCoordinator {
 
         const memberIds = vc.members.map((member) => member.id);
 
+        // players in VC start as spectators, will be moved
+        // to alive when the game starts
         const createdGame = await Game.create({
             channelId: voiceChannelId,
             controlPanelChannelId: controlPanel.channelId,
             controlPanelMessageId: controlPanel.messageId,
-            currentPlayerIds: memberIds,
+            alivePlayerIds: new Set<string>(),
+            deadPlayerIds: new Set<string>(),
+            spectatingPlayerIds: new Set<string>(memberIds),
             state: "created",
         });
 
         return new this(createdGame);
-    }
-
-    // todo: relocate these helpers to somewhere else
-    private static async getChannel(channelId: string, forceFetch: boolean = false) {
-        if (forceFetch) {
-            return DiscordClient.channels.fetch(channelId, {force: forceFetch});
-        }
-
-        return DiscordClient.channels.cache.get(channelId) ?? (await DiscordClient.channels.fetch(channelId));
-    }
-
-    private static async getMessage(messageId: string, channel: TextBasedChannel) {
-        return channel.messages.cache.get(messageId) ?? (await channel.messages.fetch(messageId));
-    }
-
-    private static async getGuild(guildId: string) {
-        return DiscordClient.guilds.cache.get(guildId) ?? (await DiscordClient.guilds.fetch(guildId));
-    }
-
-    private static async getRole(guild: Guild, roleId: string) {
-        return guild.roles.cache.get(roleId) ?? (await guild.roles.fetch(roleId));
     }
 
     /**
@@ -96,7 +79,16 @@ export class GameCoordinator {
      * "Playing" phase. This is the bot's version of pressing the Play button in game.
      */
     async startGame() {
-        await this.game.update({state: "playing"});
+        await this.game.reload();
+
+        // All spectators become alive, and the spectator/dead sets are empty.
+        // Setting the dead set to empty is likely redundant but worth doing
+        // since we're updating anyway.
+        const alivePlayerIds = this.game.spectatingPlayerIds;
+        const deadPlayerIds = new Set<string>();
+        const spectatingPlayerIds = new Set<string>();
+
+        await this.game.update({state: "playing", alivePlayerIds, spectatingPlayerIds, deadPlayerIds});
     }
 
     /**
@@ -132,12 +124,20 @@ export class GameCoordinator {
      */
     async playerJoined(playerId: string) {
         await this.game.reload();
-        if (this.game.currentPlayerIds.includes(playerId)) {
+
+        // Players who join are always added to spectators if they are not in some other set. Either:
+        // 1. the game has not started yet, in which case spectators will become alive at start, or
+        // 2. the game has started, and we can assume this player is not playing
+        // todo: some way to move a spectator into another category (just in case)
+
+        const playerSets = [this.game.alivePlayerIds, this.game.deadPlayerIds, this.game.spectatingPlayerIds];
+        if (playerSets.some((set) => set.has(playerId))) {
+            // the player already exists in alive/dead/spectator, no update needed
             return;
         }
 
-        const newPlayerIds = [...this.game.currentPlayerIds, playerId];
-        await this.game.update({currentPlayerIds: newPlayerIds});
+        const newSpectators = this.game.spectatingPlayerIds.add(playerId);
+        await this.game.update({spectatingPlayerIds: newSpectators});
 
         await this.updateControlPanel();
     }
@@ -147,13 +147,26 @@ export class GameCoordinator {
      * @param playerId the GuildMember which left the voice channel the game is taking place in
      */
     async playerLeft(playerId: string) {
+        // nothing to do here!
+        //
+        // todo: should we hide players who are no longer in the VC? On the upside, this makes the control panel more accurate.
+        // On the downside, this is more costly and increases the state we need to keep.
+    }
+
+    async playerDied(playerId: string) {
         await this.game.reload();
-        if (!this.game.currentPlayerIds.includes(playerId)) {
-            return;
+
+        if (!this.game.alivePlayerIds.has(playerId)) {
+            throw "playerDied called with non-alive player id";
         }
 
-        const newPlayerIds = this.game.currentPlayerIds.filter((id) => id !== playerId);
-        await this.game.update({currentPlayerIds: newPlayerIds});
+        this.game.deadPlayerIds.add(playerId);
+        this.game.alivePlayerIds.delete(playerId);
+
+        // since .delete returns a boolean instead of a reference, we have to retrieve a
+        // reference to the set manually
+        const {alivePlayerIds, deadPlayerIds} = this.game;
+        await this.game.update({alivePlayerIds, deadPlayerIds});
 
         await this.updateControlPanel();
     }
@@ -162,17 +175,19 @@ export class GameCoordinator {
      * Creates an embed which represents the current state of the game. Buttons and other components are *not* included.
      * @returns an embed which can be used to render the control panel
      */
-    getControlPanelEmbed(): APIEmbed {
+    async getControlPanelEmbed(): Promise<APIEmbed> {
         // this is public because a few places require this embed, and since its a pure function it does not matter
         // if it is called elsewhere.
 
-        const toPlayerList = (ids: string[]) => ids.map(userMention).join("\n") || "Nobody";
+        await this.game.reload();
+
+        const toPlayerList = (ids: Set<string>) => [...ids.values()].map(userMention).join("\n") || "Nobody";
         return new EmbedBuilder()
             .setTitle("Among Us in " + channelMention(this.game.channelId))
             .setFields(
-                {name: "Alive", value: toPlayerList(this.game.currentPlayerIds), inline: true},
-                {name: "Dead", value: toPlayerList([]), inline: true},
-                {name: "Spectating", value: toPlayerList([]), inline: true}
+                {name: "Alive", value: toPlayerList(this.game.alivePlayerIds), inline: true},
+                {name: "Dead", value: toPlayerList(this.game.deadPlayerIds), inline: true},
+                {name: "Spectating", value: toPlayerList(this.game.spectatingPlayerIds), inline: true}
             )
             .toJSON();
     }
@@ -188,6 +203,27 @@ export class GameCoordinator {
             throw "Unable to fetch control panel message";
         }
 
-        await controlPanelMessage.edit({embeds: [this.getControlPanelEmbed()]});
+        await controlPanelMessage.edit({embeds: [await this.getControlPanelEmbed()]});
+    }
+
+    // todo: relocate these helpers to somewhere else
+    private static async getChannel(channelId: string, forceFetch: boolean = false) {
+        if (forceFetch) {
+            return DiscordClient.channels.fetch(channelId, {force: forceFetch});
+        }
+
+        return DiscordClient.channels.cache.get(channelId) ?? (await DiscordClient.channels.fetch(channelId));
+    }
+
+    private static async getMessage(messageId: string, channel: TextBasedChannel) {
+        return channel.messages.cache.get(messageId) ?? (await channel.messages.fetch(messageId));
+    }
+
+    private static async getGuild(guildId: string) {
+        return DiscordClient.guilds.cache.get(guildId) ?? (await DiscordClient.guilds.fetch(guildId));
+    }
+
+    private static async getRole(guild: Guild, roleId: string) {
+        return guild.roles.cache.get(roleId) ?? (await guild.roles.fetch(roleId));
     }
 }

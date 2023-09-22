@@ -47,7 +47,7 @@ const newgameModule: CommandType = {
             messageId: replyMessage.id,
         });
 
-        const embed = coordinator.getControlPanelEmbed();
+        const embed = await coordinator.getControlPanelEmbed();
 
         const gameStartedButton = new ButtonBuilder() //
             .setLabel("Game Started")
