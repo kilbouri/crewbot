@@ -28,9 +28,13 @@ const playerDiedButton: ButtonType = {
 
         const guild = await intr.client.guilds.fetch(intr.guildId);
         const alivePlayers = await coordinator.getAlivePlayers();
-        const guildMembers = await Promise.all(alivePlayers.map((id) => getUser(guild, id)));
+
+        if (alivePlayers.length === 0) {
+            return await intr.editReply("Nobody is alive...");
+        }
 
         // have the user select who died
+        const guildMembers = await Promise.all(alivePlayers.map((id) => getUser(guild, id)));
         const selectionBoxRow = new ActionRowBuilder<MessageActionRowComponentBuilder>().setComponents(
             new StringSelectMenuBuilder()
                 .setPlaceholder("Who died?")
