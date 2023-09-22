@@ -1,5 +1,5 @@
 import {Game} from "./database";
-import {APIEmbed, EmbedBuilder, Guild, GuildMember, TextBasedChannel, channelMention, userMention} from "discord.js";
+import {APIEmbed, EmbedBuilder, Guild, TextBasedChannel, channelMention, userMention} from "discord.js";
 import {DiscordClient} from "./discordClient";
 
 // TODO: cache instances so we don't have to work so hard to create em
@@ -53,9 +53,9 @@ export class GameCoordinator {
             channelId: voiceChannelId,
             controlPanelChannelId: controlPanel.channelId,
             controlPanelMessageId: controlPanel.messageId,
-            alivePlayerIds: new Set<string>(),
-            deadPlayerIds: new Set<string>(),
-            spectatingPlayerIds: new Set<string>(memberIds),
+            alivePlayerIds: new Array<string>(0),
+            deadPlayerIds: new Array<string>(0),
+            spectatingPlayerIds: memberIds,
             state: "created",
         });
 
@@ -85,10 +85,11 @@ export class GameCoordinator {
         // Setting the dead set to empty is likely redundant but worth doing
         // since we're updating anyway.
         const alivePlayerIds = this.game.spectatingPlayerIds;
-        const deadPlayerIds = new Set<string>();
-        const spectatingPlayerIds = new Set<string>();
+        const deadPlayerIds = new Array<string>(0);
+        const spectatingPlayerIds = new Array<string>(0);
 
         await this.game.update({state: "playing", alivePlayerIds, spectatingPlayerIds, deadPlayerIds});
+        await this.updateControlPanel();
     }
 
     /**
@@ -131,12 +132,12 @@ export class GameCoordinator {
         // todo: some way to move a spectator into another category (just in case)
 
         const playerSets = [this.game.alivePlayerIds, this.game.deadPlayerIds, this.game.spectatingPlayerIds];
-        if (playerSets.some((set) => set.has(playerId))) {
+        if (playerSets.some((set) => set.includes(playerId))) {
             // the player already exists in alive/dead/spectator, no update needed
             return;
         }
 
-        const newSpectators = this.game.spectatingPlayerIds.add(playerId);
+        const newSpectators = [...this.game.spectatingPlayerIds, playerId];
         await this.game.update({spectatingPlayerIds: newSpectators});
 
         await this.updateControlPanel();
@@ -153,22 +154,34 @@ export class GameCoordinator {
         // On the downside, this is more costly and increases the state we need to keep.
     }
 
+    /**
+     * Marks a player as dead.
+     * @param playerId the user id of the player that died
+     */
     async playerDied(playerId: string) {
         await this.game.reload();
 
-        if (!this.game.alivePlayerIds.has(playerId)) {
+        if (!this.game.alivePlayerIds.includes(playerId)) {
             throw "playerDied called with non-alive player id";
         }
 
-        this.game.deadPlayerIds.add(playerId);
-        this.game.alivePlayerIds.delete(playerId);
+        const newAlive = this.game.alivePlayerIds.filter((id) => id !== playerId);
+        const newDead = [...this.game.deadPlayerIds, playerId];
 
         // since .delete returns a boolean instead of a reference, we have to retrieve a
         // reference to the set manually
-        const {alivePlayerIds, deadPlayerIds} = this.game;
-        await this.game.update({alivePlayerIds, deadPlayerIds});
+        await this.game.update({alivePlayerIds: newAlive, deadPlayerIds: newDead});
 
         await this.updateControlPanel();
+    }
+
+    /**
+     * Returns the list of unqiue user ids for players that are currently alive.
+     * @returns an array of user ids that are currently alive
+     */
+    async getAlivePlayers(): Promise<string[]> {
+        await this.game.reload();
+        return [...this.game.alivePlayerIds];
     }
 
     /**
@@ -181,7 +194,7 @@ export class GameCoordinator {
 
         await this.game.reload();
 
-        const toPlayerList = (ids: Set<string>) => [...ids.values()].map(userMention).join("\n") || "Nobody";
+        const toPlayerList = (ids: string[]) => ids.sort().map(userMention).join("\n") || "Nobody";
         return new EmbedBuilder()
             .setTitle("Among Us in " + channelMention(this.game.channelId))
             .setFields(
