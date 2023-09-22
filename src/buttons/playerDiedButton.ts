@@ -58,7 +58,10 @@ const playerDiedButton: ButtonType = {
         }, []);
 
         if (!deadUserId || !selectionInteraction) {
-            await intr.editReply("No response in 60 seconds. Guess nobody died. That's good, right?");
+            await intr.editReply({
+                content: "No response in 60 seconds. Guess nobody died. That's good, right?",
+                components: [],
+            });
             return;
         }
 
@@ -92,14 +95,18 @@ const playerDiedButton: ButtonType = {
         }, undefined);
 
         if (confirmation === undefined) {
-            await intr.update(
-                "No response in 60 seconds. Guess " + userMention(deadUserId) + " didn't die. That's good, right?"
-            );
+            await intr.editReply({
+                content:
+                    "No response in 60 seconds. Guess " + userMention(deadUserId) + " didn't die. That's good, right?",
+                components: [],
+            });
             return;
         }
 
-        await coordinator.playerDied(deadUserId);
         await intr.deleteReply();
+        if (confirmation === true) {
+            await coordinator.playerDied(deadUserId);
+        }
     },
 };
 
