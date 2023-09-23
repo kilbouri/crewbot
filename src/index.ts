@@ -1,32 +1,32 @@
+import {LoadButtons} from "./buttons";
 import {LoadCommands} from "./commands";
 import {Config} from "./config";
+import {InitializeDatabase} from "./database";
+import {DiscordClient} from "./discordClient";
 import {LoadEvents} from "./events";
 import {logger} from "./logger";
-import {Client} from "discord.js";
-
-let client: Client | undefined;
 
 const start = async () => {
     const apiConfig = Config.devMode ? Config.development : Config.production;
 
-    client = new Client({intents: []});
+    DiscordClient.on("error", logger.error);
+    DiscordClient.on("warn", logger.warn);
 
-    if (Config.devMode) {
-        client.on("error", logger.error);
-        client.on("warn", logger.warn);
-    }
-
+    await InitializeDatabase();
     await LoadCommands(apiConfig);
-    await LoadEvents(client);
+    await LoadButtons();
+    await LoadEvents();
 
-    client.login(apiConfig.apiToken);
+    DiscordClient.login(apiConfig.apiToken);
 };
 
 // graceful exit handler
 require("shutdown-handler").on("exit", (event: Event) => {
     event.preventDefault(); // delay process closing
 
-    client?.emit("shutdown");
+    if (DiscordClient.isReady()) {
+        DiscordClient.emit("shutdown");
+    }
 
     logger.info("Shutdown completed. Exiting...");
     process.exit();

@@ -2,6 +2,7 @@ import {readdir} from "fs/promises";
 import path from "path";
 import {Client} from "discord.js";
 import {logger} from "../logger";
+import {DiscordClient} from "../discordClient";
 
 interface EventType {
     eventName: string;
@@ -9,7 +10,7 @@ interface EventType {
     execute: (client: Client, ...args: any[]) => Promise<any>;
 }
 
-const LoadEvents = async (client: Client) => {
+const LoadEvents = async () => {
     logger.info(`Loading events from '${__dirname}'`);
 
     const modules = (await readdir(__dirname)) //
@@ -21,16 +22,16 @@ const LoadEvents = async (client: Client) => {
     for (const {event} of modules) {
         const eventCallback = async (...args: any[]) => {
             try {
-                await event.execute(client, ...args);
+                await event.execute(DiscordClient, ...args);
             } catch (error) {
                 logger.error(`Failed to handle '${event.eventName}' event: ${error}`);
             }
         };
 
         if (event.once) {
-            client.once(event.eventName, eventCallback);
+            DiscordClient.once(event.eventName, eventCallback);
         } else {
-            client.on(event.eventName, eventCallback);
+            DiscordClient.on(event.eventName, eventCallback);
         }
     }
 };

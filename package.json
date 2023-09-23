@@ -12,13 +12,15 @@
         "host": "node ./build/index.js"
     },
     "devDependencies": {
-        "@types/node": "^20.1.0",
         "@tsconfig/node16": "^1.0.3",
+        "@types/node": "^20.1.0",
         "discord.js": "^14.10.2",
         "json5": "^2.2.3",
         "pino": "^8.12.1",
-        "shutdown-handler": "^1.0.1",
         "pino-pretty": "^10.0.0",
+        "sequelize": "^6.33.0",
+        "shutdown-handler": "^1.0.1",
+        "sqlite3": "^5.1.6",
         "ts-node": "^10.9.1",
         "typescript": "^5.0.4"
     },
@@ -32,6 +34,6 @@
         "bracketSpacing": false,
         "arrowParens": "always",
         "endOfLine": "lf",
-        "printWidth": 90
+        "printWidth": 120
     }
 }
