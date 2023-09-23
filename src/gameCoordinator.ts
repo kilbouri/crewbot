@@ -1,6 +1,7 @@
 import {Game} from "./database";
-import {APIEmbed, EmbedBuilder, Guild, TextBasedChannel, channelMention, userMention} from "discord.js";
+import {APIEmbed, EmbedBuilder, Guild, GuildMember, TextBasedChannel, channelMention, userMention} from "discord.js";
 import {DiscordClient} from "./discordClient";
+import {logger} from "./logger";
 
 // TODO: cache instances so we don't have to work so hard to create em
 
@@ -45,17 +46,35 @@ export class GameCoordinator {
             throw "Invalid voice channel id";
         }
 
+        const guild = vc.guild;
+
+        const [alive, dead, spectating] = await Promise.all([
+            // creation order does not matter here. Each user will have one of these roles
+            // at any time.
+            guild.roles.create({name: "Alive", position: 1000}),
+            guild.roles.create({name: "Dead", position: 1000}),
+            guild.roles.create({name: "Spectating", position: 1000}),
+        ]).catch((reject) => []);
+
+        if (!alive || !dead || !spectating) {
+            throw "Creating game roles failed";
+        }
+
         const memberIds = vc.members.map((member) => member.id);
 
         // players in VC start as spectators, will be moved
         // to alive when the game starts
         const createdGame = await Game.create({
+            guildId: guild.id,
             channelId: voiceChannelId,
             controlPanelChannelId: controlPanel.channelId,
             controlPanelMessageId: controlPanel.messageId,
             alivePlayerIds: new Array<string>(0),
+            aliveRoleId: alive.id,
             deadPlayerIds: new Array<string>(0),
+            deadRoleId: dead.id,
             spectatingPlayerIds: memberIds,
+            spectatorRoleId: spectating.id,
             state: "created",
         });
 
@@ -88,6 +107,17 @@ export class GameCoordinator {
         const deadPlayerIds = new Array<string>(0);
         const spectatingPlayerIds = new Array<string>(0);
 
+        const guild = await GameCoordinator.getGuild(this.game.guildId);
+        if (!guild) {
+            throw "Failed to fetch guild";
+        }
+
+        await Promise.all(
+            alivePlayerIds.map((id) =>
+                guild.members.addRole({user: id, role: this.game.aliveRoleId, reason: "Among us game started"})
+            )
+        );
+
         await this.game.update({state: "playing", alivePlayerIds, spectatingPlayerIds, deadPlayerIds});
         await this.updateControlPanel();
     }
@@ -116,14 +146,29 @@ export class GameCoordinator {
      * - the impostor(s) winning by sabotage
      */
     async endGame() {
+        await this.game.reload();
+
+        const guild = await GameCoordinator.getGuild(this.game.guildId);
+        if (!guild) {
+            throw "Guild not found";
+        }
+
+        // deleting the roles will remove them from all players. Saves us lots of effort!
+        const deleteRole = async (roleId: string) => GameCoordinator.getRole(guild, roleId).then((r) => r?.delete());
+        await Promise.all([
+            deleteRole(this.game.aliveRoleId),
+            deleteRole(this.game.deadRoleId),
+            deleteRole(this.game.spectatorRoleId),
+        ]);
+
         await this.game.destroy();
     }
 
     /**
      * Informs the coordinator that a player has joined the voice channel in which the game is taking place
-     * @param playerId the GuildMember which joined the voice channel the game is taking place in
+     * @param guildMember the GuildMember which joined the voice channel the game is taking place in
      */
-    async playerJoined(playerId: string) {
+    async playerJoined(guildMember: GuildMember) {
         await this.game.reload();
 
         // Players who join are always added to spectators if they are not in some other set. Either:
@@ -132,24 +177,24 @@ export class GameCoordinator {
         // todo: some way to move a spectator into another category (just in case)
 
         const playerSets = [this.game.alivePlayerIds, this.game.deadPlayerIds, this.game.spectatingPlayerIds];
-        if (playerSets.some((set) => set.includes(playerId))) {
-            // the player already exists in alive/dead/spectator, no update needed
+
+        // is the player joining for the first time?
+        const guildMemberId = guildMember.id;
+        if (!playerSets.some((set) => set.includes(guildMemberId))) {
+            const newSpectators = [...this.game.spectatingPlayerIds, guildMemberId];
+            await this.game.update({spectatingPlayerIds: newSpectators});
+            await this.updateControlPanel();
             return;
         }
 
-        const newSpectators = [...this.game.spectatingPlayerIds, playerId];
-        await this.game.update({spectatingPlayerIds: newSpectators});
-
-        await this.updateControlPanel();
+        // the player must exist in one of the sets, find them and add back their role
     }
 
     /**
      * Informs the coordinator that a player has left the voice channel in which the game is taking place
-     * @param playerId the GuildMember which left the voice channel the game is taking place in
+     * @param guildMember the GuildMember which left the voice channel the game is taking place in
      */
-    async playerLeft(playerId: string) {
-        // nothing to do here!
-        //
+    async playerLeft(guildMember: GuildMember) {
         // todo: should we hide players who are no longer in the VC? On the upside, this makes the control panel more accurate.
         // On the downside, this is more costly and increases the state we need to keep.
     }
@@ -181,6 +226,8 @@ export class GameCoordinator {
      */
     async getAlivePlayers(): Promise<string[]> {
         await this.game.reload();
+
+        // clone the array to protect the internal array
         return [...this.game.alivePlayerIds];
     }
 
@@ -225,18 +272,22 @@ export class GameCoordinator {
             return DiscordClient.channels.fetch(channelId, {force: forceFetch});
         }
 
-        return DiscordClient.channels.cache.get(channelId) ?? (await DiscordClient.channels.fetch(channelId));
+        return DiscordClient.channels.cache.get(channelId) ?? DiscordClient.channels.fetch(channelId);
     }
 
     private static async getMessage(messageId: string, channel: TextBasedChannel) {
-        return channel.messages.cache.get(messageId) ?? (await channel.messages.fetch(messageId));
+        return channel.messages.cache.get(messageId) ?? channel.messages.fetch(messageId);
+    }
+
+    private static async getMember(guild: Guild, memberId: string, forceFetch: boolean = false) {
+        return guild.members.cache.get(memberId) ?? guild.members.fetch(memberId);
     }
 
     private static async getGuild(guildId: string) {
-        return DiscordClient.guilds.cache.get(guildId) ?? (await DiscordClient.guilds.fetch(guildId));
+        return DiscordClient.guilds.cache.get(guildId) ?? DiscordClient.guilds.fetch(guildId);
     }
 
     private static async getRole(guild: Guild, roleId: string) {
-        return guild.roles.cache.get(roleId) ?? (await guild.roles.fetch(roleId));
+        return guild.roles.cache.get(roleId) ?? guild.roles.fetch(roleId);
     }
 }
