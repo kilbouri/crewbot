@@ -220,6 +220,9 @@ export class GameCoordinator {
             .toJSON();
     }
 
+    /**
+     * Updates the control panel according to the current state of the game
+     */
     private async updateControlPanel() {
         const channel = await GameCoordinator.getChannel(this.game.controlPanelChannelId);
         if (!channel || !channel.isTextBased()) {
@@ -281,7 +284,6 @@ export class GameCoordinator {
      *
      * @param guild the guild in which to perform the voice state update
      * @param memberId the id of the member to update voice state for
-     * @returns
      */
     private async ensureGuildMemberVoiceState(guild: Guild, memberId: string) {
         await LoadRoles();
