@@ -27,6 +27,11 @@ const voiceStateUpdateModule: EventType = {
             return;
         }
 
+        if (from === to) {
+            logger.debug("A voiceStateUpdate was received, but the to and from channels are the same");
+            return;
+        }
+
         const eventsToDispatch: {name: string; args: [string, GuildMember]}[] = [];
 
         if (from) {
