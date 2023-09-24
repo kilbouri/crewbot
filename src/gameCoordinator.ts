@@ -171,23 +171,35 @@ export class GameCoordinator {
     async playerJoined(guildMember: GuildMember) {
         await this.game.reload();
 
-        // Players who join are always added to spectators if they are not in some other set. Either:
-        // 1. the game has not started yet, in which case spectators will become alive at start, or
-        // 2. the game has started, and we can assume this player is not playing
-        // todo: some way to move a spectator into another category (just in case)
-
+        const guildMemberId = guildMember.id;
         const playerSets = [this.game.alivePlayerIds, this.game.deadPlayerIds, this.game.spectatingPlayerIds];
 
-        // is the player joining for the first time?
-        const guildMemberId = guildMember.id;
-        if (!playerSets.some((set) => set.includes(guildMemberId))) {
+        // If the game has not started, or the player is joining a running game for the first time,
+        // add the player as a spectator
+        if (this.game.state === "created" || !playerSets.some((set) => set.includes(guildMemberId))) {
             const newSpectators = [...this.game.spectatingPlayerIds, guildMemberId];
             await this.game.update({spectatingPlayerIds: newSpectators});
             await this.updateControlPanel();
-            return;
+
+            if (this.game.state === "created") {
+                // we want to return ONLY if the game hasn't started.
+                // If the game has started, we want to fall thru to below to get
+                // the spectator role added to the new joiner
+                return;
+            }
         }
 
-        // the player must exist in one of the sets, find them and add back their role
+        // I have no idea why but this fixes an issue about reading "id" on undefined below.
+        await guildMember.fetch();
+
+        // add back the player's role
+        if (this.game.alivePlayerIds.includes(guildMemberId)) {
+            await guildMember.roles.add(this.game.aliveRoleId, "Player joined in-progress game");
+        } else if (this.game.deadPlayerIds.includes(guildMemberId)) {
+            await guildMember.roles.add(this.game.deadRoleId, "Player joined in-progress game");
+        } else {
+            await guildMember.roles.add(this.game.spectatorRoleId, "Player joined in-progress game");
+        }
     }
 
     /**
@@ -197,6 +209,13 @@ export class GameCoordinator {
     async playerLeft(guildMember: GuildMember) {
         // todo: should we hide players who are no longer in the VC? On the upside, this makes the control panel more accurate.
         // On the downside, this is more costly and increases the state we need to keep.
+        await this.game.reload();
+
+        // Remove their role. If they come back, the correct role will be added back.
+        await guildMember.roles.remove(
+            [this.game.aliveRoleId, this.game.deadRoleId, this.game.spectatorRoleId],
+            "Player left game channel"
+        );
     }
 
     /**
@@ -210,13 +229,18 @@ export class GameCoordinator {
             throw "playerDied called with non-alive player id";
         }
 
+        const guild = await GameCoordinator.getGuild(this.game.guildId);
+        if (!guild) {
+            throw "Unable to fetch guild";
+        }
+
+        await guild.members.removeRole({user: playerId, role: this.game.aliveRoleId});
+        await guild.members.addRole({user: playerId, role: this.game.deadRoleId});
+
         const newAlive = this.game.alivePlayerIds.filter((id) => id !== playerId);
         const newDead = [...this.game.deadPlayerIds, playerId];
 
-        // since .delete returns a boolean instead of a reference, we have to retrieve a
-        // reference to the set manually
         await this.game.update({alivePlayerIds: newAlive, deadPlayerIds: newDead});
-
         await this.updateControlPanel();
     }
 
