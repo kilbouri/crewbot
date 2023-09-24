@@ -237,8 +237,8 @@ export class GameCoordinator {
             throw "Unable to fetch guild";
         }
 
-        await guild.members.removeRole({user: playerId, role: this.game.aliveRoleId});
-        await guild.members.addRole({user: playerId, role: this.game.deadRoleId});
+        await guild.members.removeRole({user: playerId, role: this.game.aliveRoleId, reason: "Player died"});
+        await guild.members.addRole({user: playerId, role: this.game.deadRoleId, reason: "Player died"});
 
         const newAlive = this.game.alivePlayerIds.filter((id) => id !== playerId);
         const newDead = [...this.game.deadPlayerIds, playerId];
