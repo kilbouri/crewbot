@@ -15,7 +15,7 @@ const userJoinedVoice: EventType = {
 
         // there is a game running here.
         logger.info(`${guildMember.toString()} joined the game in ${channelMention(channelId)}`);
-        await coordinator.playerJoined(guildMember.id);
+        await coordinator.playerJoined(guildMember);
     },
 };
 

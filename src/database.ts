@@ -9,23 +9,30 @@ const sequelize = new Sequelize("database", "user", "password", {
 });
 
 class Game extends Model<InferAttributes<Game>, InferCreationAttributes<Game>> {
+    declare guildId: string;
     declare channelId: string;
     declare controlPanelMessageId: string;
     declare controlPanelChannelId: string;
     declare alivePlayerIds: string[];
+    declare aliveRoleId: string;
     declare deadPlayerIds: string[];
+    declare deadRoleId: string;
     declare spectatingPlayerIds: string[];
+    declare spectatorRoleId: string;
     declare state: "created" | "playing" | "meeting";
 }
 
 Game.init(
     {
+        guildId: DataTypes.TEXT,
+        controlPanelMessageId: DataTypes.STRING(32),
+        controlPanelChannelId: DataTypes.STRING(32),
         channelId: {
             type: DataTypes.STRING(32),
             primaryKey: true,
         },
-        controlPanelMessageId: DataTypes.STRING(32),
-        controlPanelChannelId: DataTypes.STRING(32),
+
+        aliveRoleId: DataTypes.TEXT,
         alivePlayerIds: {
             type: DataTypes.TEXT(),
             get(this: Game) {
@@ -37,6 +44,8 @@ Game.init(
                 this.setDataValue("alivePlayerIds", dataVal);
             },
         },
+
+        deadRoleId: DataTypes.TEXT,
         deadPlayerIds: {
             type: DataTypes.TEXT(),
             get(this: Game) {
@@ -48,6 +57,8 @@ Game.init(
                 this.setDataValue("deadPlayerIds", dataVal);
             },
         },
+
+        spectatorRoleId: DataTypes.TEXT,
         spectatingPlayerIds: {
             type: DataTypes.TEXT(),
             get(this: Game) {

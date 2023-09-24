@@ -4,7 +4,6 @@ import {
     ComponentType,
     Guild,
     MessageActionRowComponentBuilder,
-    MessageComponentInteraction,
     StringSelectMenuBuilder,
     userMention,
 } from "discord.js";
