@@ -14,11 +14,8 @@ class Game extends Model<InferAttributes<Game>, InferCreationAttributes<Game>> {
     declare controlPanelMessageId: string;
     declare controlPanelChannelId: string;
     declare alivePlayerIds: string[];
-    declare aliveRoleId: string;
     declare deadPlayerIds: string[];
-    declare deadRoleId: string;
     declare spectatingPlayerIds: string[];
-    declare spectatorRoleId: string;
     declare state: "created" | "playing" | "meeting";
 }
 
@@ -31,8 +28,6 @@ Game.init(
             type: DataTypes.STRING(32),
             primaryKey: true,
         },
-
-        aliveRoleId: DataTypes.TEXT,
         alivePlayerIds: {
             type: DataTypes.TEXT(),
             get(this: Game) {
@@ -45,7 +40,6 @@ Game.init(
             },
         },
 
-        deadRoleId: DataTypes.TEXT,
         deadPlayerIds: {
             type: DataTypes.TEXT(),
             get(this: Game) {
@@ -57,8 +51,6 @@ Game.init(
                 this.setDataValue("deadPlayerIds", dataVal);
             },
         },
-
-        spectatorRoleId: DataTypes.TEXT,
         spectatingPlayerIds: {
             type: DataTypes.TEXT(),
             get(this: Game) {
