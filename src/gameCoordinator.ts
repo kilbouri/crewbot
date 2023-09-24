@@ -154,7 +154,10 @@ export class GameCoordinator {
         }
 
         // deleting the roles will remove them from all players. Saves us lots of effort!
-        const deleteRole = async (roleId: string) => GameCoordinator.getRole(guild, roleId).then((r) => r?.delete());
+        const deleteRole = async (roleId: string) => {
+            await GameCoordinator.getRole(guild, roleId).then((r) => r?.delete("Among Us game ended"));
+        };
+
         await Promise.all([
             deleteRole(this.game.aliveRoleId),
             deleteRole(this.game.deadRoleId),
