@@ -177,19 +177,16 @@ export class GameCoordinator {
         const guildMemberId = guildMember.id;
         const playerSets = [this.game.alivePlayerIds, this.game.deadPlayerIds, this.game.spectatingPlayerIds];
 
-        // If the game has not started, or the player is joining a running game for the first time,
-        // add the player as a spectator
-        if (this.game.state === "created" || !playerSets.some((set) => set.includes(guildMemberId))) {
+        // first time joining, they are a spectator
+        if (!playerSets.some((set) => set.includes(guildMemberId))) {
             const newSpectators = [...this.game.spectatingPlayerIds, guildMemberId];
             await this.game.update({spectatingPlayerIds: newSpectators});
             await this.updateControlPanel();
+        }
 
-            if (this.game.state === "created") {
-                // we want to return ONLY if the game hasn't started.
-                // If the game has started, we want to fall thru to below to get
-                // the spectator role added to the new joiner
-                return;
-            }
+        // no roles should be assigned during the "created" phase
+        if (this.game.state === "created") {
+            return;
         }
 
         // I have no idea why but this fixes an issue about reading "id" on undefined below.
