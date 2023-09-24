@@ -89,6 +89,11 @@ export class GameCoordinator {
         const deadPlayerIds = new Array<string>(0);
         const spectatingPlayerIds = new Array<string>(0);
 
+        const guild = await GameCoordinator.getGuild(this.game.guildId);
+        if (!guild) {
+            throw "Failed to fetch guild";
+        }
+
         await this.game.update({state: "playing", alivePlayerIds, spectatingPlayerIds, deadPlayerIds});
         await this.updateControlPanel();
     }
@@ -143,6 +148,11 @@ export class GameCoordinator {
             await this.game.update({spectatingPlayerIds: newSpectators});
             await this.updateControlPanel();
         }
+
+        // don't want to set the mute state of the player if the game isn't running
+        if (this.game.state === "created") {
+            return;
+        }
     }
 
     /**
@@ -152,8 +162,8 @@ export class GameCoordinator {
     async playerLeft(guildMember: GuildMember) {
         // todo: should we hide players who are no longer in the VC? On the upside, this makes the control panel more accurate.
         // On the downside, this is more costly and increases the state we need to keep.
-        //
-        // Nothing to do here!
+
+        await GameCoordinator.setVoiceState(guildMember, false, false);
     }
 
     /**
@@ -218,6 +228,10 @@ export class GameCoordinator {
         }
 
         await controlPanelMessage.edit({embeds: [await this.getControlPanelEmbed()]});
+    }
+
+    private static async setVoiceState(member: GuildMember, mute: boolean, deaf: boolean) {
+        await member.edit({deaf, mute});
     }
 
     // todo: relocate these helpers to somewhere else

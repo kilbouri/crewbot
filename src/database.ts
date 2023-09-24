@@ -8,6 +8,8 @@ const sequelize = new Sequelize("database", "user", "password", {
     storage: "database.sqlite",
 });
 
+type GameState = "created" | "playing" | "meeting";
+
 class Game extends Model<InferAttributes<Game>, InferCreationAttributes<Game>> {
     declare guildId: string;
     declare channelId: string;
@@ -16,7 +18,7 @@ class Game extends Model<InferAttributes<Game>, InferCreationAttributes<Game>> {
     declare alivePlayerIds: string[];
     declare deadPlayerIds: string[];
     declare spectatingPlayerIds: string[];
-    declare state: "created" | "playing" | "meeting";
+    declare state: GameState;
 }
 
 Game.init(
@@ -76,4 +78,4 @@ const InitializeDatabase = async () => {
     await sequelize.sync({alter: Config.devMode});
 };
 
-export {Game as Game, InitializeDatabase};
+export {Game, GameState, InitializeDatabase};
