@@ -4,13 +4,13 @@ import {logger} from "../logger";
 import path from "path";
 
 interface ExpectedVoiceState {
-    deafened: boolean;
-    muted: boolean;
+    deaf: boolean;
+    mute: boolean;
 }
 
 interface RoleType {
     name: string;
-    getExpectedVoiceState: (state: Exclude<GameState, "created">) => Promise<ExpectedVoiceState>;
+    getExpectedVoiceState: (state: Exclude<GameState, "created" | "ended">) => Promise<ExpectedVoiceState>;
 }
 
 const roleCache = new Map<string, RoleType>();
@@ -18,7 +18,7 @@ let rolesLoaded = false;
 
 const LoadRoles = async () => {
     if (rolesLoaded) {
-        logger.debug("LoadRoles called, but roles have already been loaded. Ignoring.");
+        logger.debug("Ignoring LoadRoles call, as Roles are already loaded");
         return;
     }
 

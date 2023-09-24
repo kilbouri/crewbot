@@ -5,9 +5,9 @@ const aliveRole: RoleType = {
     getExpectedVoiceState: async (state) => {
         switch (state) {
             case "meeting":
-                return {deafened: false, muted: false};
+                return {deaf: false, mute: false};
             case "playing":
-                return {deafened: true, muted: true};
+                return {deaf: true, mute: true};
         }
     },
 };

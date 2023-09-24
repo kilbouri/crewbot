@@ -1,6 +1,7 @@
 import {Game} from "./database";
 import {APIEmbed, EmbedBuilder, Guild, GuildMember, TextBasedChannel, channelMention, userMention} from "discord.js";
 import {DiscordClient} from "./discordClient";
+import {GetRole, LoadRoles} from "./roles";
 
 // TODO: cache instances so we don't have to work so hard to create em
 
@@ -95,6 +96,7 @@ export class GameCoordinator {
         }
 
         await this.game.update({state: "playing", alivePlayerIds, spectatingPlayerIds, deadPlayerIds});
+        await this.ensureVoiceState();
         await this.updateControlPanel();
     }
 
@@ -104,6 +106,7 @@ export class GameCoordinator {
      */
     async startMeeting() {
         await this.game.update({state: "meeting"});
+        await this.ensureVoiceState();
     }
 
     /**
@@ -112,6 +115,7 @@ export class GameCoordinator {
      */
     async endMeeting() {
         await this.game.update({state: "playing"});
+        await this.ensureVoiceState();
     }
 
     /**
@@ -122,12 +126,8 @@ export class GameCoordinator {
      * - the impostor(s) winning by sabotage
      */
     async endGame() {
-        await this.game.reload();
-
-        const guild = await GameCoordinator.getGuild(this.game.guildId);
-        if (!guild) {
-            throw "Guild not found";
-        }
+        await this.game.update({state: "ended"});
+        await this.ensureVoiceState();
 
         await this.game.destroy();
     }
@@ -149,10 +149,7 @@ export class GameCoordinator {
             await this.updateControlPanel();
         }
 
-        // don't want to set the mute state of the player if the game isn't running
-        if (this.game.state === "created") {
-            return;
-        }
+        await this.ensureGuildMemberVoiceState(guildMember.guild, guildMemberId);
     }
 
     /**
@@ -163,7 +160,7 @@ export class GameCoordinator {
         // todo: should we hide players who are no longer in the VC? On the upside, this makes the control panel more accurate.
         // On the downside, this is more costly and increases the state we need to keep.
 
-        await GameCoordinator.setVoiceState(guildMember, false, false);
+        await guildMember.edit({deaf: false, mute: false});
     }
 
     /**
@@ -181,6 +178,13 @@ export class GameCoordinator {
         const newDead = [...this.game.deadPlayerIds, playerId];
 
         await this.game.update({alivePlayerIds: newAlive, deadPlayerIds: newDead});
+
+        const guild = await GameCoordinator.getGuild(this.game.guildId);
+        if (!guild) {
+            throw "Failed to fetch guild";
+        }
+
+        await this.ensureGuildMemberVoiceState(guild, playerId);
         await this.updateControlPanel();
     }
 
@@ -230,8 +234,79 @@ export class GameCoordinator {
         await controlPanelMessage.edit({embeds: [await this.getControlPanelEmbed()]});
     }
 
-    private static async setVoiceState(member: GuildMember, mute: boolean, deaf: boolean) {
-        await member.edit({deaf, mute});
+    /**
+     * Ensures all players have their voice state set according to their current state in the game.
+     * NOTE: this is a somewhat expensive function to call, as it checks every single player. Use
+     * `ensureGuildMemberVoiceState` to update a single guild member.
+     */
+    private async ensureVoiceState() {
+        await Promise.all([LoadRoles(), this.game.reload()]);
+
+        const guild = await GameCoordinator.getGuild(this.game.guildId);
+        if (!guild) {
+            throw "Failed to fetch guild";
+        }
+
+        const batchUpdateState = async (ids: string[], voiceState: {deaf: boolean; mute: boolean}) => {
+            await Promise.all(ids.map((id) => guild.members.edit(id, voiceState)));
+        };
+
+        if (this.game.state === "created" || this.game.state === "ended") {
+            await batchUpdateState(
+                [...this.game.alivePlayerIds, ...this.game.deadPlayerIds, ...this.game.spectatingPlayerIds],
+                {deaf: false, mute: false}
+            );
+
+            return;
+        }
+
+        const aliveState = await GetRole("Alive")?.getExpectedVoiceState(this.game.state);
+        const deadState = await GetRole("Dead")?.getExpectedVoiceState(this.game.state);
+        const spectatorState = await GetRole("Spectator")?.getExpectedVoiceState(this.game.state);
+
+        if (!aliveState || !deadState || !spectatorState) {
+            throw "One or more role definitions missing";
+        }
+
+        await Promise.all([
+            batchUpdateState(this.game.alivePlayerIds, aliveState),
+            batchUpdateState(this.game.deadPlayerIds, deadState),
+            batchUpdateState(this.game.spectatingPlayerIds, spectatorState),
+        ]);
+    }
+
+    /**
+     * Ensures the specified member in the specified guild has the correct voice state for their
+     * current role at the current game state.
+     *
+     * @param guild the guild in which to perform the voice state update
+     * @param memberId the id of the member to update voice state for
+     * @returns
+     */
+    private async ensureGuildMemberVoiceState(guild: Guild, memberId: string) {
+        await LoadRoles();
+
+        let roleName: string;
+        if (this.game.alivePlayerIds.includes(memberId)) {
+            roleName = "Alive";
+        } else if (this.game.deadPlayerIds.includes(memberId)) {
+            roleName = "Dead";
+        } else {
+            roleName = "Spectator";
+        }
+
+        const role = GetRole(roleName);
+        if (!role) {
+            throw `Unable to find role '${role}'`;
+        }
+
+        if (this.game.state === "created" || this.game.state === "ended") {
+            await guild.members.edit(memberId, {deaf: false, mute: false});
+            return;
+        }
+
+        const expectedState = await role.getExpectedVoiceState(this.game.state);
+        await guild.members.edit(memberId, expectedState);
     }
 
     // todo: relocate these helpers to somewhere else

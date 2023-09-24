@@ -8,7 +8,7 @@ const sequelize = new Sequelize("database", "user", "password", {
     storage: "database.sqlite",
 });
 
-type GameState = "created" | "playing" | "meeting";
+type GameState = "created" | "playing" | "meeting" | "ended";
 
 class Game extends Model<InferAttributes<Game>, InferCreationAttributes<Game>> {
     declare guildId: string;
