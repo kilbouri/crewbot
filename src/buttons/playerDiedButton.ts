@@ -48,7 +48,6 @@ const playerDiedButton: ButtonType = {
             const selected = await selectionReply.awaitMessageComponent({
                 time: 60 * 1000,
                 componentType: ComponentType.StringSelect,
-                dispose: true,
                 filter: (e) => e.customId === "deadPlayer",
             });
 
@@ -90,7 +89,6 @@ const playerDiedButton: ButtonType = {
         const confirmation = await catchTimeout(async () => {
             const response = await confirmationMessage.awaitMessageComponent({
                 time: 60 * 1000,
-                dispose: true,
                 componentType: ComponentType.Button,
             });
 

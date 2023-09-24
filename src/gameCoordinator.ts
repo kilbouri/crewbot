@@ -1,7 +1,7 @@
 import {Game} from "./database";
 import {APIEmbed, EmbedBuilder, Guild, GuildMember, TextBasedChannel, channelMention, userMention} from "discord.js";
 import {DiscordClient} from "./discordClient";
-import {logger} from "./logger";
+import {GetRole, LoadRoles} from "./roles";
 
 // TODO: cache instances so we don't have to work so hard to create em
 
@@ -46,35 +46,18 @@ export class GameCoordinator {
             throw "Invalid voice channel id";
         }
 
-        const guild = vc.guild;
-
-        const [alive, dead, spectating] = await Promise.all([
-            // creation order does not matter here. Each user will have one of these roles
-            // at any time.
-            guild.roles.create({name: "Alive", position: 1000}),
-            guild.roles.create({name: "Dead", position: 1000}),
-            guild.roles.create({name: "Spectating", position: 1000}),
-        ]).catch((reject) => []);
-
-        if (!alive || !dead || !spectating) {
-            throw "Creating game roles failed";
-        }
-
         const memberIds = vc.members.map((member) => member.id);
 
         // players in VC start as spectators, will be moved
         // to alive when the game starts
         const createdGame = await Game.create({
-            guildId: guild.id,
+            guildId: vc.guildId,
             channelId: voiceChannelId,
             controlPanelChannelId: controlPanel.channelId,
             controlPanelMessageId: controlPanel.messageId,
             alivePlayerIds: new Array<string>(0),
-            aliveRoleId: alive.id,
             deadPlayerIds: new Array<string>(0),
-            deadRoleId: dead.id,
             spectatingPlayerIds: memberIds,
-            spectatorRoleId: spectating.id,
             state: "created",
         });
 
@@ -112,13 +95,8 @@ export class GameCoordinator {
             throw "Failed to fetch guild";
         }
 
-        await Promise.all(
-            alivePlayerIds.map((id) =>
-                guild.members.addRole({user: id, role: this.game.aliveRoleId, reason: "Among us game started"})
-            )
-        );
-
         await this.game.update({state: "playing", alivePlayerIds, spectatingPlayerIds, deadPlayerIds});
+        await this.ensureVoiceState();
         await this.updateControlPanel();
     }
 
@@ -128,6 +106,7 @@ export class GameCoordinator {
      */
     async startMeeting() {
         await this.game.update({state: "meeting"});
+        await this.ensureVoiceState();
     }
 
     /**
@@ -136,6 +115,7 @@ export class GameCoordinator {
      */
     async endMeeting() {
         await this.game.update({state: "playing"});
+        await this.ensureVoiceState();
     }
 
     /**
@@ -146,23 +126,8 @@ export class GameCoordinator {
      * - the impostor(s) winning by sabotage
      */
     async endGame() {
-        await this.game.reload();
-
-        const guild = await GameCoordinator.getGuild(this.game.guildId);
-        if (!guild) {
-            throw "Guild not found";
-        }
-
-        // deleting the roles will remove them from all players. Saves us lots of effort!
-        const deleteRole = async (roleId: string) => {
-            await GameCoordinator.getRole(guild, roleId).then((r) => r?.delete("Among Us game ended"));
-        };
-
-        await Promise.all([
-            deleteRole(this.game.aliveRoleId),
-            deleteRole(this.game.deadRoleId),
-            deleteRole(this.game.spectatorRoleId),
-        ]);
+        await this.game.update({state: "ended"});
+        await this.ensureVoiceState();
 
         await this.game.destroy();
     }
@@ -184,22 +149,7 @@ export class GameCoordinator {
             await this.updateControlPanel();
         }
 
-        // no roles should be assigned during the "created" phase
-        if (this.game.state === "created") {
-            return;
-        }
-
-        // I have no idea why but this fixes an issue about reading "id" on undefined below.
-        await guildMember.fetch();
-
-        // add back the player's role
-        if (this.game.alivePlayerIds.includes(guildMemberId)) {
-            await guildMember.roles.add(this.game.aliveRoleId, "Player joined in-progress game");
-        } else if (this.game.deadPlayerIds.includes(guildMemberId)) {
-            await guildMember.roles.add(this.game.deadRoleId, "Player joined in-progress game");
-        } else {
-            await guildMember.roles.add(this.game.spectatorRoleId, "Player joined in-progress game");
-        }
+        await this.ensureGuildMemberVoiceState(guildMember.guild, guildMemberId);
     }
 
     /**
@@ -209,13 +159,8 @@ export class GameCoordinator {
     async playerLeft(guildMember: GuildMember) {
         // todo: should we hide players who are no longer in the VC? On the upside, this makes the control panel more accurate.
         // On the downside, this is more costly and increases the state we need to keep.
-        await this.game.reload();
 
-        // Remove their role. If they come back, the correct role will be added back.
-        await guildMember.roles.remove(
-            [this.game.aliveRoleId, this.game.deadRoleId, this.game.spectatorRoleId],
-            "Player left game channel"
-        );
+        await guildMember.edit({deaf: false, mute: false});
     }
 
     /**
@@ -229,18 +174,17 @@ export class GameCoordinator {
             throw "playerDied called with non-alive player id";
         }
 
-        const guild = await GameCoordinator.getGuild(this.game.guildId);
-        if (!guild) {
-            throw "Unable to fetch guild";
-        }
-
-        await guild.members.removeRole({user: playerId, role: this.game.aliveRoleId, reason: "Player died"});
-        await guild.members.addRole({user: playerId, role: this.game.deadRoleId, reason: "Player died"});
-
         const newAlive = this.game.alivePlayerIds.filter((id) => id !== playerId);
         const newDead = [...this.game.deadPlayerIds, playerId];
 
         await this.game.update({alivePlayerIds: newAlive, deadPlayerIds: newDead});
+
+        const guild = await GameCoordinator.getGuild(this.game.guildId);
+        if (!guild) {
+            throw "Failed to fetch guild";
+        }
+
+        await this.ensureGuildMemberVoiceState(guild, playerId);
         await this.updateControlPanel();
     }
 
@@ -276,6 +220,9 @@ export class GameCoordinator {
             .toJSON();
     }
 
+    /**
+     * Updates the control panel according to the current state of the game
+     */
     private async updateControlPanel() {
         const channel = await GameCoordinator.getChannel(this.game.controlPanelChannelId);
         if (!channel || !channel.isTextBased()) {
@@ -288,6 +235,80 @@ export class GameCoordinator {
         }
 
         await controlPanelMessage.edit({embeds: [await this.getControlPanelEmbed()]});
+    }
+
+    /**
+     * Ensures all players have their voice state set according to their current state in the game.
+     * NOTE: this is a somewhat expensive function to call, as it checks every single player. Use
+     * `ensureGuildMemberVoiceState` to update a single guild member.
+     */
+    private async ensureVoiceState() {
+        await Promise.all([LoadRoles(), this.game.reload()]);
+
+        const guild = await GameCoordinator.getGuild(this.game.guildId);
+        if (!guild) {
+            throw "Failed to fetch guild";
+        }
+
+        const batchUpdateState = async (ids: string[], voiceState: {deaf: boolean; mute: boolean}) => {
+            await Promise.all(ids.map((id) => guild.members.edit(id, voiceState)));
+        };
+
+        if (this.game.state === "created" || this.game.state === "ended") {
+            await batchUpdateState(
+                [...this.game.alivePlayerIds, ...this.game.deadPlayerIds, ...this.game.spectatingPlayerIds],
+                {deaf: false, mute: false}
+            );
+
+            return;
+        }
+
+        const aliveState = await GetRole("Alive")?.getExpectedVoiceState(this.game.state);
+        const deadState = await GetRole("Dead")?.getExpectedVoiceState(this.game.state);
+        const spectatorState = await GetRole("Spectator")?.getExpectedVoiceState(this.game.state);
+
+        if (!aliveState || !deadState || !spectatorState) {
+            throw "One or more role definitions missing";
+        }
+
+        await Promise.all([
+            batchUpdateState(this.game.alivePlayerIds, aliveState),
+            batchUpdateState(this.game.deadPlayerIds, deadState),
+            batchUpdateState(this.game.spectatingPlayerIds, spectatorState),
+        ]);
+    }
+
+    /**
+     * Ensures the specified member in the specified guild has the correct voice state for their
+     * current role at the current game state.
+     *
+     * @param guild the guild in which to perform the voice state update
+     * @param memberId the id of the member to update voice state for
+     */
+    private async ensureGuildMemberVoiceState(guild: Guild, memberId: string) {
+        await LoadRoles();
+
+        let roleName: string;
+        if (this.game.alivePlayerIds.includes(memberId)) {
+            roleName = "Alive";
+        } else if (this.game.deadPlayerIds.includes(memberId)) {
+            roleName = "Dead";
+        } else {
+            roleName = "Spectator";
+        }
+
+        const role = GetRole(roleName);
+        if (!role) {
+            throw `Unable to find role '${role}'`;
+        }
+
+        if (this.game.state === "created" || this.game.state === "ended") {
+            await guild.members.edit(memberId, {deaf: false, mute: false});
+            return;
+        }
+
+        const expectedState = await role.getExpectedVoiceState(this.game.state);
+        await guild.members.edit(memberId, expectedState);
     }
 
     // todo: relocate these helpers to somewhere else
