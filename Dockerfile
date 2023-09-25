@@ -12,8 +12,5 @@ COPY ./src src
 COPY ./tsconfig.json tsconfig.json
 RUN yarn build
 
-# Config layer
-COPY ./config.json5 config.json5
-
 # Execution layer
 CMD yarn host

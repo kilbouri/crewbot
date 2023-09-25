@@ -1,0 +1,8 @@
+services:
+  crewbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    volumes:
+      - ./data:/app/data:rw
