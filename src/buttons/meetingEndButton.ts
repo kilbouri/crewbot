@@ -11,21 +11,7 @@ const meetingEndButton: ButtonType = {
         }
 
         await coordinator.endMeeting();
-
-        // create an updated action row
-        const newActionRow = new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
-            new ButtonBuilder()
-                .setLabel("Meeting Started")
-                .setStyle(ButtonStyle.Primary)
-                .setCustomId(BuildButtonId("meetingStart", channelId)),
-            new ButtonBuilder()
-                .setLabel("Game Ended")
-                .setStyle(ButtonStyle.Danger)
-                .setCustomId(BuildButtonId("gameEnd", channelId))
-        );
-
-        // edit the original message
-        await intr.update({components: [newActionRow]});
+        await intr.update({});
     },
 };
 

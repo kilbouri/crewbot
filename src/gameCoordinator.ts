@@ -1,7 +1,26 @@
 import {Game} from "./database";
-import {APIEmbed, EmbedBuilder, Guild, GuildMember, TextBasedChannel, channelMention, userMention} from "discord.js";
+import {
+    APIEmbed,
+    ActionRow,
+    ActionRowBuilder,
+    ActionRowComponentData,
+    ActionRowData,
+    ButtonBuilder,
+    ButtonStyle,
+    EmbedBuilder,
+    Guild,
+    GuildMember,
+    MessageActionRowComponent,
+    MessageActionRowComponentBuilder,
+    MessageActionRowComponentData,
+    MessageComponent,
+    TextBasedChannel,
+    channelMention,
+    userMention,
+} from "discord.js";
 import {DiscordClient} from "./discordClient";
 import {GetRole, LoadRoles} from "./roles";
+import {BuildButtonId} from "./buttons";
 
 // TODO: cache instances so we don't have to work so hard to create em
 
@@ -107,6 +126,7 @@ export class GameCoordinator {
     async startMeeting() {
         await this.game.update({state: "meeting"});
         await this.ensureVoiceState();
+        await this.updateControlPanel();
     }
 
     /**
@@ -116,6 +136,7 @@ export class GameCoordinator {
     async endMeeting() {
         await this.game.update({state: "playing"});
         await this.ensureVoiceState();
+        await this.updateControlPanel();
     }
 
     /**
@@ -220,6 +241,62 @@ export class GameCoordinator {
             .toJSON();
     }
 
+    async getControlPanelComponents() {
+        await this.game.reload();
+
+        const gameStateRow = new ActionRowBuilder<MessageActionRowComponentBuilder>();
+        const gameLifecycleRow = new ActionRowBuilder<MessageActionRowComponentBuilder>();
+
+        const gameStartedButton = new ButtonBuilder()
+            .setLabel("Game Started")
+            .setStyle(ButtonStyle.Success)
+            .setCustomId(BuildButtonId("gameStarted", this.game.channelId));
+
+        const gameEndedButton = new ButtonBuilder()
+            .setLabel("Game Ended")
+            .setStyle(ButtonStyle.Danger)
+            .setCustomId(BuildButtonId("gameEnded", this.game.channelId));
+
+        const meetingStartButton = new ButtonBuilder()
+            .setLabel("Meeting Started")
+            .setStyle(ButtonStyle.Primary)
+            .setCustomId(BuildButtonId("meetingStart", this.game.channelId));
+
+        const meetingEndButton = new ButtonBuilder()
+            .setLabel("Meeting Ended")
+            .setStyle(ButtonStyle.Primary)
+            .setCustomId(BuildButtonId("meetingEnd", this.game.channelId));
+
+        const playerDiedButton = new ButtonBuilder()
+            .setLabel("Player Died")
+            .setStyle(ButtonStyle.Danger)
+            .setCustomId(BuildButtonId("playerDied", this.game.channelId));
+
+        switch (this.game.state) {
+            case "created":
+                gameStateRow.setComponents([]);
+                gameLifecycleRow.setComponents([gameStartedButton, gameEndedButton]);
+                break;
+
+            case "playing":
+                gameStateRow.setComponents([meetingStartButton, playerDiedButton]);
+                gameLifecycleRow.setComponents([gameEndedButton]);
+                break;
+
+            case "meeting":
+                gameStateRow.setComponents([meetingEndButton, playerDiedButton]);
+                gameLifecycleRow.setComponents([gameEndedButton]);
+                break;
+
+            case "ended":
+                gameStateRow.setComponents([]);
+                gameLifecycleRow.setComponents([]);
+                break;
+        }
+
+        return [gameStateRow.toJSON(), gameLifecycleRow.toJSON()].filter((row) => row.components.length > 0);
+    }
+
     /**
      * Updates the control panel according to the current state of the game
      */
@@ -234,7 +311,13 @@ export class GameCoordinator {
             throw "Unable to fetch control panel message";
         }
 
-        await controlPanelMessage.edit({embeds: [await this.getControlPanelEmbed()]});
+        const [embed, components] = await Promise.all([this.getControlPanelEmbed(), this.getControlPanelComponents()]);
+
+        if (!embed || !components) {
+            throw "Failed to fetch updated control panel";
+        }
+
+        await controlPanelMessage.edit({embeds: [embed], components: components});
     }
 
     /**
