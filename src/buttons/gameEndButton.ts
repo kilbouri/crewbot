@@ -9,8 +9,8 @@ import {
 import {ButtonType} from ".";
 import {GameCoordinator} from "../gameCoordinator";
 
-const gameEndButton: ButtonType = {
-    buttonId: "gameEnd",
+const gameEndedButton: ButtonType = {
+    buttonId: "gameEnded",
     execute: async (initialIntr, channelId: string) => {
         // Replace the embed with one indicating the game has ended
         const embed = new EmbedBuilder()
@@ -69,4 +69,4 @@ const gameEndButton: ButtonType = {
     },
 };
 
-export {gameEndButton as button};
+export {gameEndedButton as button};
