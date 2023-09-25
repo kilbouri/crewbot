@@ -12,16 +12,13 @@ Just run `yarn dev`. No build is required, as the bot will run in `ts-node`. You
 
 #### Option 1 - Docker
 
-1. Copy `config.example.json5` to `config.json5` and fill in the fields
-2. Build a docker image: `docker build -t bot .`
-3. Start a container from that image: `docker run bot`
+1. Copy `/data/config.example.json5` to `/data/config.json5` and fill in the fields
+2. Run `docker compose up -d` (`-d` automatically detaches you from the container)
 
 Done!
 
 #### Option 2 - Yarn
 
-1. Copy `config.example.json5` to `config.json5` and fill in the fields
+1. Copy `/data/config.example.json5` to `/data/config.json5` and fill in the fields
 2. `yarn build` to transpile TypeScript to JavaScript
 3. `yarn host` to start the bot
-
-> Building and hosting are separated because changes to `config.json5` do not require a complete re-build of the bot.

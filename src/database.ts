@@ -5,7 +5,7 @@ const sequelize = new Sequelize("database", "user", "password", {
     host: "localhost",
     dialect: "sqlite",
     logging: false,
-    storage: "database.sqlite",
+    storage: "data/database.sqlite",
 });
 
 type GameState = "created" | "playing" | "meeting" | "ended";
