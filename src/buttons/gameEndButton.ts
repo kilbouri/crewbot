@@ -12,11 +12,6 @@ import {GameCoordinator} from "../gameCoordinator";
 const gameEndedButton: ButtonType = {
     buttonId: "gameEnded",
     execute: async (initialIntr, channelId: string) => {
-        // Replace the embed with one indicating the game has ended
-        const embed = new EmbedBuilder()
-            .setTitle("Game Ended")
-            .setDescription("This game of Among Us has ended. Use `/newgame` to create a new one!");
-
         const confirmButtonId = "confirmDelete";
         const cancelButtonId = "cancelDelete";
         const confirmActionRow = new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
@@ -50,13 +45,6 @@ const gameEndedButton: ButtonType = {
 
             if (buttonResponse.customId === confirmButtonId) {
                 await coordinator.endGame();
-
-                // ensure the channel is in cache
-                await initialIntr.client.channels.fetch(initialIntr.message.channelId);
-
-                // fetch the game control panel, and edit it
-                const controlPanelMessage = await initialIntr.message.fetch();
-                await controlPanelMessage.edit({embeds: [embed], components: []});
             }
 
             await initialIntr.deleteReply();

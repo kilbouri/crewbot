@@ -1,26 +1,9 @@
 import {Game} from "./database";
-import {
-    APIEmbed,
-    ActionRow,
-    ActionRowBuilder,
-    ActionRowComponentData,
-    ActionRowData,
-    ButtonBuilder,
-    ButtonStyle,
-    EmbedBuilder,
-    Guild,
-    GuildMember,
-    MessageActionRowComponent,
-    MessageActionRowComponentBuilder,
-    MessageActionRowComponentData,
-    MessageComponent,
-    TextBasedChannel,
-    channelMention,
-    userMention,
-} from "discord.js";
-import {DiscordClient} from "./discordClient";
+import {Guild, GuildMember} from "discord.js";
 import {GetRole, LoadRoles} from "./roles";
-import {BuildButtonId} from "./buttons";
+import {DiscordUtil} from "./discordUtil";
+import {ControlPanelManager} from "./controlPanelManager";
+import {Lazy} from "./lazy";
 
 // TODO: cache instances so we don't have to work so hard to create em
 
@@ -28,7 +11,11 @@ import {BuildButtonId} from "./buttons";
  * Provides logic related to the lifecycle of an Among Us game.
  */
 export class GameCoordinator {
-    private constructor(private game: Game) {}
+    private controlPanelManager: Lazy<ControlPanelManager>;
+
+    private constructor(private game: Game) {
+        this.controlPanelManager = new Lazy(async () => await ControlPanelManager.forGame(this.game));
+    }
 
     /**
      * Creates a GameCoordinator for an *existing* Game in the specified channel.
@@ -60,7 +47,7 @@ export class GameCoordinator {
         voiceChannelId: string,
         controlPanel: {channelId: string; messageId: string}
     ): Promise<GameCoordinator> {
-        const vc = await GameCoordinator.getChannel(voiceChannelId, true);
+        const vc = await DiscordUtil.getChannel(voiceChannelId, true);
         if (!vc || !vc.isVoiceBased()) {
             throw "Invalid voice channel id";
         }
@@ -109,7 +96,7 @@ export class GameCoordinator {
         const deadPlayerIds = new Array<string>(0);
         const spectatingPlayerIds = new Array<string>(0);
 
-        const guild = await GameCoordinator.getGuild(this.game.guildId);
+        const guild = await DiscordUtil.getGuild(this.game.guildId);
         if (!guild) {
             throw "Failed to fetch guild";
         }
@@ -149,7 +136,7 @@ export class GameCoordinator {
     async endGame() {
         await this.game.update({state: "ended"});
         await this.ensureVoiceState();
-
+        await this.updateControlPanel();
         await this.game.destroy();
     }
 
@@ -200,7 +187,7 @@ export class GameCoordinator {
 
         await this.game.update({alivePlayerIds: newAlive, deadPlayerIds: newDead});
 
-        const guild = await GameCoordinator.getGuild(this.game.guildId);
+        const guild = await DiscordUtil.getGuild(this.game.guildId);
         if (!guild) {
             throw "Failed to fetch guild";
         }
@@ -221,106 +208,6 @@ export class GameCoordinator {
     }
 
     /**
-     * Creates an embed which represents the current state of the game. Buttons and other components are *not* included.
-     * @returns an embed which can be used to render the control panel
-     */
-    async getControlPanelEmbed(): Promise<APIEmbed> {
-        // this is public because a few places require this embed, and since its a pure function it does not matter
-        // if it is called elsewhere.
-
-        await this.game.reload();
-
-        const toPlayerList = (ids: string[]) => ids.sort().map(userMention).join("\n") || "Nobody";
-        return new EmbedBuilder()
-            .setTitle("Among Us in " + channelMention(this.game.channelId))
-            .setFields(
-                {name: "Alive", value: toPlayerList(this.game.alivePlayerIds), inline: true},
-                {name: "Dead", value: toPlayerList(this.game.deadPlayerIds), inline: true},
-                {name: "Spectating", value: toPlayerList(this.game.spectatingPlayerIds), inline: true}
-            )
-            .toJSON();
-    }
-
-    async getControlPanelComponents() {
-        await this.game.reload();
-
-        const gameStateRow = new ActionRowBuilder<MessageActionRowComponentBuilder>();
-        const gameLifecycleRow = new ActionRowBuilder<MessageActionRowComponentBuilder>();
-
-        const gameStartedButton = new ButtonBuilder()
-            .setLabel("Game Started")
-            .setStyle(ButtonStyle.Success)
-            .setCustomId(BuildButtonId("gameStarted", this.game.channelId));
-
-        const gameEndedButton = new ButtonBuilder()
-            .setLabel("Game Ended")
-            .setStyle(ButtonStyle.Danger)
-            .setCustomId(BuildButtonId("gameEnded", this.game.channelId));
-
-        const meetingStartButton = new ButtonBuilder()
-            .setLabel("Meeting Started")
-            .setStyle(ButtonStyle.Primary)
-            .setCustomId(BuildButtonId("meetingStart", this.game.channelId));
-
-        const meetingEndButton = new ButtonBuilder()
-            .setLabel("Meeting Ended")
-            .setStyle(ButtonStyle.Primary)
-            .setCustomId(BuildButtonId("meetingEnd", this.game.channelId));
-
-        const playerDiedButton = new ButtonBuilder()
-            .setLabel("Player Died")
-            .setStyle(ButtonStyle.Danger)
-            .setCustomId(BuildButtonId("playerDied", this.game.channelId));
-
-        switch (this.game.state) {
-            case "created":
-                gameStateRow.setComponents([]);
-                gameLifecycleRow.setComponents([gameStartedButton, gameEndedButton]);
-                break;
-
-            case "playing":
-                gameStateRow.setComponents([meetingStartButton, playerDiedButton]);
-                gameLifecycleRow.setComponents([gameEndedButton]);
-                break;
-
-            case "meeting":
-                gameStateRow.setComponents([meetingEndButton, playerDiedButton]);
-                gameLifecycleRow.setComponents([gameEndedButton]);
-                break;
-
-            case "ended":
-                gameStateRow.setComponents([]);
-                gameLifecycleRow.setComponents([]);
-                break;
-        }
-
-        return [gameStateRow.toJSON(), gameLifecycleRow.toJSON()].filter((row) => row.components.length > 0);
-    }
-
-    /**
-     * Updates the control panel according to the current state of the game
-     */
-    private async updateControlPanel() {
-        const channel = await GameCoordinator.getChannel(this.game.controlPanelChannelId);
-        if (!channel || !channel.isTextBased()) {
-            throw "Unable to fetch control panel channel";
-        }
-
-        const controlPanelMessage = await GameCoordinator.getMessage(this.game.controlPanelMessageId, channel);
-        if (!controlPanelMessage) {
-            throw "Unable to fetch control panel message";
-        }
-
-        const [embed, components] = await Promise.all([this.getControlPanelEmbed(), this.getControlPanelComponents()]);
-
-        if (!embed || !components) {
-            throw "Failed to fetch updated control panel";
-        }
-
-        await controlPanelMessage.edit({embeds: [embed], components: components});
-    }
-
-    /**
      * Ensures all players have their voice state set according to their current state in the game.
      * NOTE: this is a somewhat expensive function to call, as it checks every single player. Use
      * `ensureGuildMemberVoiceState` to update a single guild member.
@@ -328,7 +215,7 @@ export class GameCoordinator {
     private async ensureVoiceState() {
         await Promise.all([LoadRoles(), this.game.reload()]);
 
-        const guild = await GameCoordinator.getGuild(this.game.guildId);
+        const guild = await DiscordUtil.getGuild(this.game.guildId);
         if (!guild) {
             throw "Failed to fetch guild";
         }
@@ -394,28 +281,8 @@ export class GameCoordinator {
         await guild.members.edit(memberId, expectedState);
     }
 
-    // todo: relocate these helpers to somewhere else
-    private static async getChannel(channelId: string, forceFetch: boolean = false) {
-        if (forceFetch) {
-            return DiscordClient.channels.fetch(channelId, {force: forceFetch});
-        }
-
-        return DiscordClient.channels.cache.get(channelId) ?? DiscordClient.channels.fetch(channelId);
-    }
-
-    private static async getMessage(messageId: string, channel: TextBasedChannel) {
-        return channel.messages.cache.get(messageId) ?? channel.messages.fetch(messageId);
-    }
-
-    private static async getMember(guild: Guild, memberId: string, forceFetch: boolean = false) {
-        return guild.members.cache.get(memberId) ?? guild.members.fetch(memberId);
-    }
-
-    private static async getGuild(guildId: string) {
-        return DiscordClient.guilds.cache.get(guildId) ?? DiscordClient.guilds.fetch(guildId);
-    }
-
-    private static async getRole(guild: Guild, roleId: string) {
-        return guild.roles.cache.get(roleId) ?? guild.roles.fetch(roleId);
+    private async updateControlPanel() {
+        const controlPanel = await this.controlPanelManager.get();
+        controlPanel.update();
     }
 }
