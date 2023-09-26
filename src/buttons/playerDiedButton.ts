@@ -2,7 +2,6 @@ import {
     ButtonBuilder,
     ButtonStyle,
     ComponentType,
-    Guild,
     MessageActionRowComponentBuilder,
     StringSelectMenuBuilder,
     userMention,
@@ -10,6 +9,7 @@ import {
 import {ButtonType} from ".";
 import {GameCoordinator} from "../gameCoordinator";
 import {ActionRowBuilder} from "@discordjs/builders";
+import {DiscordUtil} from "../discordUtil";
 
 const playerDiedButton: ButtonType = {
     buttonId: "playerDied",
@@ -33,7 +33,7 @@ const playerDiedButton: ButtonType = {
         }
 
         // have the user select who died
-        const guildMembers = await Promise.all(alivePlayers.map((id) => getUser(guild, id)));
+        const guildMembers = await Promise.all(alivePlayers.map((id) => DiscordUtil.getMember(guild, id)));
         const selectionBoxRow = new ActionRowBuilder<MessageActionRowComponentBuilder>().setComponents(
             new StringSelectMenuBuilder()
                 .setPlaceholder("Who died?")
@@ -109,10 +109,6 @@ const playerDiedButton: ButtonType = {
             await coordinator.playerDied(deadUserId);
         }
     },
-};
-
-const getUser = async (guild: Guild, userId: string) => {
-    return guild.members.cache.get(userId) ?? (await guild.members.fetch(userId));
 };
 
 const catchTimeout = async <T, E>(promise: () => Promise<T>, timeoutValue: E): Promise<T | E> => {

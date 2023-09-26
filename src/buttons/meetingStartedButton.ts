@@ -1,17 +1,17 @@
 import {ButtonType} from ".";
 import {GameCoordinator} from "../gameCoordinator";
 
-const gameStartButton: ButtonType = {
-    buttonId: "gameStart",
+const meetingStartButton: ButtonType = {
+    buttonId: "meetingStarted",
     execute: async (intr, channelId: string) => {
         const coordinator = await GameCoordinator.forChannel(channelId);
         if (!coordinator) {
             return;
         }
 
-        await coordinator.startGame();
+        await coordinator.startMeeting();
         await intr.update({});
     },
 };
 
-export {gameStartButton as button};
+export {meetingStartButton as button};
