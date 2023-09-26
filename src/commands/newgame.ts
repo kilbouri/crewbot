@@ -1,16 +1,6 @@
-import {
-    ActionRowBuilder,
-    ButtonBuilder,
-    ButtonStyle,
-    ChannelType,
-    EmbedBuilder,
-    MessageActionRowComponentBuilder,
-    SlashCommandBuilder,
-    SlashCommandChannelOption,
-} from "discord.js";
+import {ChannelType, EmbedBuilder, SlashCommandBuilder, SlashCommandChannelOption} from "discord.js";
 import {CommandType} from ".";
 import {Game} from "../database";
-import {BuildButtonId} from "../buttons";
 import {GameCoordinator} from "../gameCoordinator";
 
 const newgameModule: CommandType = {
@@ -39,32 +29,13 @@ const newgameModule: CommandType = {
             .setTitle("Creating game...")
             .setDescription(`A game in ${channel.toString()} is being created. Please wait :)`);
 
-        const reply = await intr.reply({embeds: [gameCreatingEmbed]});
+        await intr.reply({embeds: [gameCreatingEmbed]});
         const editedReply = await intr.editReply({embeds: [gameCreatingEmbed]});
 
-        const coordinator = await GameCoordinator.createGame(channel.id, {
+        await GameCoordinator.createGame(channel.id, {
             channelId: intr.channelId,
             messageId: editedReply.id,
         });
-
-        // We can now create the game and update the embed
-        // const embed = await coordinator.getControlPanelEmbed();
-
-        // const gameStartedButton = new ButtonBuilder() //
-        //     .setLabel("Game Started")
-        //     .setCustomId(BuildButtonId("gameStart", channel.id))
-        //     .setStyle(ButtonStyle.Primary);
-
-        // const gameEndedButton = new ButtonBuilder()
-        //     .setLabel("Game Ended")
-        //     .setStyle(ButtonStyle.Danger)
-        //     .setCustomId(BuildButtonId("gameEnd", channel.id));
-
-        // const actionRow = new ActionRowBuilder<MessageActionRowComponentBuilder>() //
-        //     .addComponents(gameStartedButton, gameEndedButton);
-
-        // const response = await intr.editReply({embeds: [embed], components: [actionRow]});
-        // await coordinator.setControlPanel(response.channelId, response.id);
     },
 };
 
