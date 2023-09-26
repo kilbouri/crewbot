@@ -76,12 +76,12 @@ export class ControlPanelManager {
         const meetingStartButton = new ButtonBuilder()
             .setLabel("Meeting Started")
             .setStyle(ButtonStyle.Primary)
-            .setCustomId(BuildButtonId("meetingStart", this.game.channelId));
+            .setCustomId(BuildButtonId("meetingStarted", this.game.channelId));
 
         const meetingEndButton = new ButtonBuilder()
             .setLabel("Meeting Ended")
             .setStyle(ButtonStyle.Primary)
-            .setCustomId(BuildButtonId("meetingEnd", this.game.channelId));
+            .setCustomId(BuildButtonId("meetingEnded", this.game.channelId));
 
         const playerDiedButton = new ButtonBuilder()
             .setLabel("Player Died")

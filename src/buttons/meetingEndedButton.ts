@@ -1,9 +1,8 @@
-import {ActionRowBuilder, MessageActionRowComponentBuilder, ButtonBuilder, ButtonStyle} from "discord.js";
-import {BuildButtonId, ButtonType} from ".";
+import {ButtonType} from ".";
 import {GameCoordinator} from "../gameCoordinator";
 
 const meetingEndButton: ButtonType = {
-    buttonId: "meetingEnd",
+    buttonId: "meetingEnded",
     execute: async (intr, channelId: string) => {
         const coordinator = await GameCoordinator.forChannel(channelId);
         if (!coordinator) {

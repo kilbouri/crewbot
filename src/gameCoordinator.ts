@@ -11,10 +11,10 @@ import {Lazy} from "./lazy";
  * Provides logic related to the lifecycle of an Among Us game.
  */
 export class GameCoordinator {
-    private controlPanelManager: Lazy<ControlPanelManager>;
+    private controlPanel: Lazy<ControlPanelManager>;
 
     private constructor(private game: Game) {
-        this.controlPanelManager = new Lazy(async () => await ControlPanelManager.forGame(this.game));
+        this.controlPanel = new Lazy(async () => await ControlPanelManager.forGame(this.game));
     }
 
     /**
@@ -66,6 +66,12 @@ export class GameCoordinator {
             spectatingPlayerIds: memberIds,
             state: "created",
         });
+
+        // Having this here plus a lazy instance created in the constructor is a bit gross,
+        // but realistically OK. This will prime the cache for the lazy instance anyway,
+        // so we shouldn't be hitting the API twice.
+        const tempControlPanelManager = await ControlPanelManager.forGame(createdGame);
+        tempControlPanelManager.update();
 
         return new this(createdGame);
     }
@@ -281,8 +287,12 @@ export class GameCoordinator {
         await guild.members.edit(memberId, expectedState);
     }
 
+    /**
+     * Triggers a control panel update. Only useful to update the control panel
+     * after initial game creation. All other methods call this for you, if needed.
+     */
     private async updateControlPanel() {
-        const controlPanel = await this.controlPanelManager.get();
-        controlPanel.update();
+        const controlPanel = await this.controlPanel.get();
+        await controlPanel.update();
     }
 }

@@ -3,7 +3,6 @@ import {
     ButtonBuilder,
     ButtonStyle,
     ComponentType,
-    EmbedBuilder,
     MessageActionRowComponentBuilder,
 } from "discord.js";
 import {ButtonType} from ".";

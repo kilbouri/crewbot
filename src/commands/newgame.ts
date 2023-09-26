@@ -39,31 +39,32 @@ const newgameModule: CommandType = {
             .setTitle("Creating game...")
             .setDescription(`A game in ${channel.toString()} is being created. Please wait :)`);
 
-        const replyMessage = await intr.reply({embeds: [gameCreatingEmbed]});
+        const reply = await intr.reply({embeds: [gameCreatingEmbed]});
+        const editedReply = await intr.editReply({embeds: [gameCreatingEmbed]});
 
-        // We can now create the game and update the embed
         const coordinator = await GameCoordinator.createGame(channel.id, {
             channelId: intr.channelId,
-            messageId: replyMessage.id,
+            messageId: editedReply.id,
         });
 
-        const embed = await coordinator.getControlPanelEmbed();
+        // We can now create the game and update the embed
+        // const embed = await coordinator.getControlPanelEmbed();
 
-        const gameStartedButton = new ButtonBuilder() //
-            .setLabel("Game Started")
-            .setCustomId(BuildButtonId("gameStart", channel.id))
-            .setStyle(ButtonStyle.Primary);
+        // const gameStartedButton = new ButtonBuilder() //
+        //     .setLabel("Game Started")
+        //     .setCustomId(BuildButtonId("gameStart", channel.id))
+        //     .setStyle(ButtonStyle.Primary);
 
-        const gameEndedButton = new ButtonBuilder()
-            .setLabel("Game Ended")
-            .setStyle(ButtonStyle.Danger)
-            .setCustomId(BuildButtonId("gameEnd", channel.id));
+        // const gameEndedButton = new ButtonBuilder()
+        //     .setLabel("Game Ended")
+        //     .setStyle(ButtonStyle.Danger)
+        //     .setCustomId(BuildButtonId("gameEnd", channel.id));
 
-        const actionRow = new ActionRowBuilder<MessageActionRowComponentBuilder>() //
-            .addComponents(gameStartedButton, gameEndedButton);
+        // const actionRow = new ActionRowBuilder<MessageActionRowComponentBuilder>() //
+        //     .addComponents(gameStartedButton, gameEndedButton);
 
-        const response = await intr.editReply({embeds: [embed], components: [actionRow]});
-        await coordinator.setControlPanel(response.channelId, response.id);
+        // const response = await intr.editReply({embeds: [embed], components: [actionRow]});
+        // await coordinator.setControlPanel(response.channelId, response.id);
     },
 };
 
