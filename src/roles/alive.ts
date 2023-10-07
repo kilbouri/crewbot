@@ -7,7 +7,7 @@ const aliveRole: RoleType = {
             case "meeting":
                 return {deaf: false, mute: false};
             case "playing":
-                return {deaf: true, mute: true};
+                return {deaf: true, mute: false};
         }
     },
 };
