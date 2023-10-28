@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "main": "index.ts",
     "author": "Isaac Kilbourne",
-    "license": "MIT",
+    "license": "GPL-3.0-or-later",
     "private": true,
     "scripts": {
         "dev": "ts-node ./src/index.ts",
